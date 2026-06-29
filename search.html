@@ -1,0 +1,156 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>GAW Research Search</title>
+<link rel="stylesheet" href="search.css">
+</head>
+<body>
+<div id="app">
+
+  <!-- HEADER -->
+  <header id="header">
+    <div class="header-left">
+      <h1>GAW Research Search</h1>
+      <span class="header-sub">Firehose Archive</span>
+    </div>
+    <div class="header-right">
+      <button id="btn-saved" class="header-btn" title="Saved Searches">Saved</button>
+      <button id="btn-settings" class="header-btn" title="Settings">Settings</button>
+    </div>
+  </header>
+
+  <!-- SEARCH BAR -->
+  <section id="search-section">
+    <div class="search-bar">
+      <input type="text" id="search-input" placeholder="Search the GAW archive..." autocomplete="off" autofocus>
+      <button id="btn-search" title="Search">Search</button>
+    </div>
+
+    <!-- QUERY BUILDER -->
+    <div id="query-builder">
+      <div class="builder-row">
+        <label>Include (AND):</label>
+        <input type="text" id="qb-include" placeholder="Words that MUST appear (space-separated)">
+      </div>
+      <div class="builder-row">
+        <label>Require phrase:</label>
+        <input type="text" id="qb-phrase" placeholder="Exact phrase match">
+      </div>
+      <div class="builder-row">
+        <label>Exclude (NOT):</label>
+        <input type="text" id="qb-exclude" placeholder="Words to EXCLUDE (space-separated)">
+      </div>
+      <div class="builder-row">
+        <label>Author:</label>
+        <input type="text" id="qb-author" placeholder="Username">
+      </div>
+      <div class="builder-row">
+        <label>Score:</label>
+        <select id="qb-score-op">
+          <option value="">Any</option>
+          <option value=">">Greater than</option>
+          <option value=">=">At least</option>
+          <option value="<">Less than</option>
+          <option value="=">Exactly</option>
+        </select>
+        <input type="number" id="qb-score-val" placeholder="e.g. 50" min="0">
+      </div>
+      <div class="builder-row">
+        <label>Date range:</label>
+        <input type="date" id="qb-date-from" title="From date">
+        <span class="date-sep">to</span>
+        <input type="date" id="qb-date-to" title="To date">
+      </div>
+      <div class="builder-row">
+        <label>Scope:</label>
+        <select id="qb-scope">
+          <option value="posts">Posts only</option>
+          <option value="comments">Comments only</option>
+          <option value="both">Posts + Comments</option>
+        </select>
+      </div>
+      <div class="builder-row">
+        <label>Sort:</label>
+        <select id="qb-sort">
+          <option value="relevance">Relevance (BM25)</option>
+          <option value="newest">Newest first</option>
+          <option value="score">Highest score</option>
+        </select>
+      </div>
+      <div class="builder-row">
+        <label>Show removed:</label>
+        <select id="qb-removed">
+          <option value="">All content</option>
+          <option value="1">Removed only</option>
+          <option value="0">Non-removed only</option>
+        </select>
+      </div>
+      <div class="builder-actions">
+        <button id="btn-build-query" class="action-btn">Build Query</button>
+        <button id="btn-toggle-builder" class="action-btn secondary">Hide Advanced</button>
+        <button id="btn-clear-builder" class="action-btn secondary">Clear</button>
+      </div>
+    </div>
+
+    <!-- RECENT SEARCHES -->
+    <div id="recent-searches" class="chip-row"></div>
+  </section>
+
+  <!-- STATUS -->
+  <div id="status-bar">
+    <span id="status-text"></span>
+    <span id="result-count"></span>
+  </div>
+
+  <!-- RESULTS -->
+  <section id="results-section">
+    <div id="results-list"></div>
+    <div id="pagination">
+      <button id="btn-prev" disabled>Previous</button>
+      <span id="page-info"></span>
+      <button id="btn-next" disabled>Next</button>
+    </div>
+  </section>
+
+  <!-- SAVED SEARCHES PANEL -->
+  <div id="saved-panel" class="panel hidden">
+    <div class="panel-header">
+      <h2>Saved Searches</h2>
+      <button class="panel-close" data-close="saved-panel">X</button>
+    </div>
+    <div id="saved-list" class="panel-body"></div>
+  </div>
+
+  <!-- SETTINGS PANEL -->
+  <div id="settings-panel" class="panel hidden">
+    <div class="panel-header">
+      <h2>Settings</h2>
+      <button class="panel-close" data-close="settings-panel">X</button>
+    </div>
+    <div class="panel-body">
+      <div class="setting-row">
+        <label for="settings-token">Mod Token:</label>
+        <input type="password" id="settings-token" placeholder="Paste your mod token">
+        <button id="btn-save-token">Save</button>
+      </div>
+      <div class="setting-row">
+        <label for="settings-per-page">Results per page:</label>
+        <select id="settings-per-page">
+          <option value="20">20</option>
+          <option value="50" selected>50</option>
+          <option value="100">100</option>
+        </select>
+      </div>
+      <p class="settings-note">Your token is stored locally in this browser only. It is never sent anywhere except the GAW worker API.</p>
+    </div>
+  </div>
+
+  <!-- OVERLAY -->
+  <div id="overlay" class="hidden"></div>
+
+</div>
+<script src="search.js"></script>
+</body>
+</html>

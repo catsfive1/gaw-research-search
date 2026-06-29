@@ -1,0 +1,62 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body {
+  width: 320px;
+  background: #0d1117;
+  color: #e6edf3;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  font-size: 13px;
+  padding: 16px;
+}
+h2 { font-size: 15px; color: #58a6ff; margin-bottom: 12px; }
+.row { display: flex; gap: 6px; margin-bottom: 10px; }
+input {
+  flex: 1;
+  background: #161b22;
+  color: #e6edf3;
+  border: 1px solid #30363d;
+  padding: 6px 10px;
+  border-radius: 4px;
+  font-size: 13px;
+}
+input:focus { outline: none; border-color: #58a6ff; }
+button {
+  background: #1f6feb;
+  color: #fff;
+  border: none;
+  padding: 6px 14px;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 600;
+}
+button:hover { background: #58a6ff; }
+.link {
+  display: block;
+  color: #58a6ff;
+  text-decoration: none;
+  margin-top: 8px;
+  font-size: 12px;
+  cursor: pointer;
+}
+.link:hover { text-decoration: underline; }
+.status { font-size: 11px; color: #8b949e; margin-top: 8px; }
+.status.ok { color: #3fb950; }
+.status.err { color: #f85149; }
+</style>
+</head>
+<body>
+<h2>GAW Research Search</h2>
+<div class="row">
+  <input type="text" id="q" placeholder="Quick search..." autofocus>
+  <button id="go">Go</button>
+</div>
+<a class="link" id="open-full">Open Full Search (New Tab)</a>
+<div class="status" id="status"></div>
+<script src="popup.js"></script>
+</body>
+</html>
