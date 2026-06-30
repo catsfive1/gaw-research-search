@@ -46,9 +46,6 @@ try {
     $files = @(
         'manifest.json',
         'background.js',
-        'search.html',
-        'search.css',
-        'search.js',
         'popup.html',
         'popup.js',
         'icons\icon16.png',

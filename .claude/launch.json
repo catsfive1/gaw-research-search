@@ -1,0 +1,11 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "gaw-research-preview",
+      "runtimeExecutable": "python",
+      "runtimeArgs": ["-m", "http.server", "7734", "--directory", "D:\\AI\\_PROJECTS\\gaw-research-search"],
+      "port": 7734
+    }
+  ]
+}
