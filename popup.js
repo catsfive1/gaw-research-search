@@ -1,4 +1,4 @@
-/* GAW Research Search v2.2.0 — Popup Logic */
+/* GAW Research Search v2.3.0 — Popup Logic */
 'use strict';
 
 const $ = id => document.getElementById(id);
@@ -786,16 +786,22 @@ function initDebugLink() {
   initDebugLink();
   // Restore last query if popup was closed mid-search
   const stored = await new Promise(r => chrome.storage.local.get(['lastQuery'], r));
-  if (stored.lastQuery) {
-    qEl.value = stored.lastQuery;
+  // P1-2: this key is written directly by this file (not via background.js's
+  // message API), so it never passes through background.js's sanitization
+  // helpers. Apply the same type-check + length cap here before it touches
+  // the DOM, so a corrupted/wrong-type stored value can't flow into
+  // qEl.value or a .textContent template string unsanitized.
+  const lastQuery = typeof stored.lastQuery === 'string' ? capLen(stored.lastQuery.trim(), MAX_TEXT_LEN) : '';
+  if (lastQuery) {
+    qEl.value = lastQuery;
     // Results aren't restored (avoids re-hitting the worker on every popup
     // open for cost/latency reasons) -- make the empty state say so instead
     // of looking like the previous search just vanished. This is a
     // .textContent assignment, so no HTML-escaping is applied or needed
     // (P2-2: escHtml() into .textContent would double-escape).
     emptyEl.querySelector('.empty-txt').textContent = 'Press Enter to search again';
-    emptyEl.querySelector('.empty-hint').textContent = `Picking up where you left off: "${stored.lastQuery}"`;
-    updateSaveBtn(stored.lastQuery);
+    emptyEl.querySelector('.empty-hint').textContent = `Picking up where you left off: "${lastQuery}"`;
+    updateSaveBtn(lastQuery);
   }
   qEl.focus();
   qEl.select();

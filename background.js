@@ -1,4 +1,4 @@
-/* GAW Research Search v2.2.0 — Background Service Worker */
+/* GAW Research Search v2.3.0 — Background Service Worker */
 'use strict';
 
 const WORKER_BASE = 'https://gaw-mod-proxy.gaw-mods-a2f2d0e4.workers.dev';
