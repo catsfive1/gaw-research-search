@@ -12,7 +12,7 @@ removed/deleted ones — instantly, with no login. Built for digging: find old p
 author, date, score, flair, whatever.
 
 **How to install it (2 minutes):**
-1. Download the ZIP I'll send you separately: `gaw-research-search-v2.2.0.zip`
+1. Download the ZIP I'll send you separately: `gaw-research-search-v2.3.0.zip`
 2. Unzip it anywhere on your computer.
 3. Open Chrome and go to `chrome://extensions`
 4. Turn on **Developer mode** (top-right toggle).

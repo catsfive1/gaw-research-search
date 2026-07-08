@@ -1,8 +1,26 @@
-# GAW Research Search — Handoff (2026-07-07)
+# GAW Research Search — Handoff (2026-07-08)
 
 ## Status: ready for mod testing
 
 Everything below is verified working as of this handoff, not just "should work."
+
+## v2.3.0 update (2026-07-08): CAT CHOIR red-team remediation
+
+A full adversarial code review (manifest, background.js, popup.js, popup.html,
+package.ps1) came back with 24 findings across 5 P0 (release blockers), 9 P1
+(reliability), and 7 P2 (polish) items, plus a 10-item Worker-side risk
+register. All 24 client-side findings were fixed and then independently
+re-verified against the actual code on disk (not self-certified by whoever
+implemented the fix) — the one gap that survived first-pass verification
+(`lastQuery` restore bypassing sanitization) was fixed and re-verified closed.
+Two real Worker-side gaps were also fixed and deployed: the `/gaw/submit-url`
+outbound fetch now sets `redirect:'manual'` (was silently following redirects,
+mirroring an SSRF pattern already fixed elsewhere in the same file), and the
+rate-limiter no longer trusts the forgeable `x-real-ip` header. A 121-test
+hand-rolled suite (`tests/`, no framework, `node --test`) now covers the
+security-relevant logic and passes clean. Nothing here changes what a mod
+testing the extension needs to do — this is a hardening pass, not a feature
+or UX change.
 
 ## What this is
 
@@ -17,14 +35,14 @@ early July.
 - **Database total: 100,872+ posts** (gaw_posts table, gaw-audit D1) — climbing continuously.
 - Quality filter on the bulk crawler: score > 20, comments >= 6 (deliberate submissions via
   the extension's "Add a Post" feature bypass this filter — see below).
-- Extension version: **v2.2.0**.
+- Extension version: **v2.3.0** (security/reliability hardening pass — see below).
 
 ## Architecture (where everything lives)
 
 | Piece | Path / identifier |
 |---|---|
 | Extension source | `D:\AI\_PROJECTS\gaw-research-search\` (manifest.json, popup.html, popup.js, background.js) |
-| Packaged ZIP | `D:\AI\_PROJECTS\dist\gaw-research-search-v2.2.0.zip` |
+| Packaged ZIP | `D:\AI\_PROJECTS\dist\gaw-research-search-v2.3.0.zip` |
 | Unpacked (Load unpacked target) | `D:\AI\_PROJECTS\dist\gaw-research-search-dist\` |
 | Worker source | `D:\AI\_PROJECTS\cloudflare-worker\gaw-mod-proxy-v2.js` |
 | Worker deployed as | `gaw-mod-proxy` → `https://gaw-mod-proxy.gaw-mods-a2f2d0e4.workers.dev` |
