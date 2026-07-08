@@ -3,206 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <title>GAW Research Search</title>
-<style>
-*{margin:0;padding:0;box-sizing:border-box}
-:root{
-  --bg:#0d1117;--bg2:#161b22;--bg3:#21262d;
-  --border:#30363d;--border2:#484f58;
-  --text:#e6edf3;--text2:#8b949e;--text3:#6e7681;
-  --blue:#58a6ff;--blue2:#1f6feb;--blue3:#388bfd;
-  --green:#3fb950;--red:#f85149;--orange:#f0883e;
-  --yellow:#d29922;--purple:#bc8cff;
-}
-html{width:600px;min-height:200px}
-body{
-  width:600px;background:var(--bg);color:var(--text);
-  font:13px/1.5 -apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;
-  display:flex;flex-direction:column;max-height:640px;overflow:hidden
-}
-
-/* HEADER */
-#hdr{
-  display:flex;align-items:center;gap:10px;
-  padding:10px 14px 8px;border-bottom:1px solid var(--border);
-  flex-shrink:0
-}
-#hdr-logo{font-size:18px;line-height:1}
-#hdr-title{font-weight:700;font-size:14px;color:var(--text);letter-spacing:.3px}
-#hdr-sub{font-size:11px;color:var(--text3);margin-left:auto}
-#hdr-saved-btn{
-  background:none;border:1px solid var(--border);border-radius:5px;
-  color:var(--text2);font-size:11px;padding:3px 8px;cursor:pointer;
-  transition:border-color .15s,color .15s
-}
-#hdr-saved-btn:hover{border-color:var(--blue);color:var(--blue)}
-
-/* SEARCH BAR */
-#search-wrap{padding:10px 14px 6px;flex-shrink:0}
-#search-row{display:flex;gap:6px}
-#q{
-  flex:1;background:var(--bg2);color:var(--text);
-  border:1px solid var(--border2);border-radius:6px;
-  padding:8px 12px;font-size:14px;outline:none;
-  transition:border-color .15s
-}
-#q:focus{border-color:var(--blue)}
-#q::placeholder{color:var(--text3)}
-#btn-search{
-  background:var(--blue2);color:#fff;border:none;
-  border-radius:6px;padding:8px 16px;font-size:13px;
-  font-weight:600;cursor:pointer;white-space:nowrap;
-  transition:background .15s
-}
-#btn-search:hover{background:var(--blue3)}
-#btn-search:active{background:var(--blue2)}
-
-/* FILTER TOGGLE */
-#filter-toggle{
-  display:flex;align-items:center;gap:6px;padding:4px 14px 6px;
-  cursor:pointer;width:fit-content;user-select:none
-}
-#filter-toggle-txt{font-size:11px;color:var(--text3)}
-#filter-arrow{font-size:10px;color:var(--text3);transition:transform .2s}
-#filter-toggle.open #filter-arrow{transform:rotate(90deg)}
-
-/* FILTER PANEL */
-#filters{
-  display:none;padding:8px 14px 10px;
-  border-top:1px solid var(--border);border-bottom:1px solid var(--border);
-  background:var(--bg2);flex-shrink:0
-}
-#filters.visible{display:block}
-.f-row{display:flex;align-items:center;gap:8px;margin-bottom:6px}
-.f-row:last-child{margin-bottom:0}
-.f-label{font-size:11px;color:var(--text2);width:54px;flex-shrink:0}
-.f-row input,.f-row select{
-  background:var(--bg3);color:var(--text);border:1px solid var(--border);
-  border-radius:4px;padding:4px 7px;font-size:12px;outline:none;flex:1;
-  transition:border-color .15s
-}
-.f-row input:focus,.f-row select:focus{border-color:var(--blue)}
-.f-row input[type=date]{color-scheme:dark}
-.f-date-sep{font-size:11px;color:var(--text3)}
-.f-score-wrap{display:flex;gap:4px;align-items:center;flex:1}
-.f-score-wrap select{flex:0 0 80px}
-.f-score-wrap input{flex:1}
-.f-row-3{display:flex;gap:8px;align-items:center}
-.f-row-3 .f-label{width:54px}
-.f-pair{display:flex;align-items:center;gap:4px;flex:1}
-.f-pair .f-label-sm{font-size:11px;color:var(--text2);flex-shrink:0}
-.f-pair select{flex:1}
-
-/* STATUS BAR */
-#status-bar{
-  padding:5px 14px;font-size:11px;color:var(--text3);
-  border-bottom:1px solid var(--border);flex-shrink:0;min-height:26px;
-  display:flex;align-items:center;gap:6px
-}
-#status-bar.error{color:var(--red)}
-#status-bar.loading::before{
-  content:'';display:inline-block;width:10px;height:10px;
-  border:2px solid var(--border2);border-top-color:var(--blue);
-  border-radius:50%;animation:spin .7s linear infinite;flex-shrink:0
-}
-@keyframes spin{to{transform:rotate(360deg)}}
-
-/* RESULTS */
-#results{overflow-y:auto;flex:1}
-.result{
-  padding:10px 14px;border-bottom:1px solid var(--border);
-  cursor:pointer;transition:background .1s;display:block;
-  text-decoration:none;color:inherit
-}
-.result:hover{background:var(--bg2)}
-.result:last-child{border-bottom:none}
-.r-title{
-  font-size:13px;font-weight:600;color:var(--blue);
-  line-height:1.4;margin-bottom:4px;
-  display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden
-}
-.result:hover .r-title{color:var(--blue3)}
-.r-meta{
-  display:flex;flex-wrap:wrap;gap:8px;font-size:11px;
-  color:var(--text3);margin-bottom:5px;align-items:center
-}
-.r-flair{
-  background:var(--bg3);border:1px solid var(--border);
-  border-radius:10px;padding:1px 7px;font-size:10px;
-  color:var(--text2);white-space:nowrap
-}
-.r-score{color:var(--green)}
-.r-comments{color:var(--blue)}
-.r-author{color:var(--purple)}
-.r-date{color:var(--text3)}
-.r-removed{
-  background:#2d1015;border:1px solid var(--red);
-  border-radius:3px;padding:1px 5px;font-size:10px;color:var(--red)
-}
-.r-excerpt{
-  font-size:12px;color:var(--text2);line-height:1.5;
-  display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden
-}
-.r-excerpt mark{background:rgba(88,166,255,.2);color:var(--blue);border-radius:2px;padding:0 1px}
-.r-type-comment{border-left:3px solid var(--border2);padding-left:10px}
-
-/* EMPTY / INITIAL STATES */
-#empty{
-  display:flex;flex-direction:column;align-items:center;justify-content:center;
-  padding:40px 20px;gap:10px;color:var(--text3);text-align:center
-}
-#empty .empty-icon{font-size:36px;opacity:.4}
-#empty .empty-txt{font-size:13px}
-#empty .empty-hint{font-size:11px;color:var(--text3);opacity:.7}
-
-/* SAVED PANEL */
-#saved-panel{
-  display:none;flex-direction:column;flex:1;overflow:hidden
-}
-#saved-panel.visible{display:flex}
-#saved-hdr{
-  padding:8px 14px;border-bottom:1px solid var(--border);
-  display:flex;align-items:center;gap:8px;flex-shrink:0
-}
-#saved-hdr span{font-size:13px;font-weight:600;flex:1}
-#btn-saved-close{
-  background:none;border:none;color:var(--text2);cursor:pointer;
-  font-size:16px;line-height:1;padding:2px 4px
-}
-#btn-saved-close:hover{color:var(--text)}
-#saved-list{overflow-y:auto;flex:1}
-.saved-item{
-  padding:9px 14px;border-bottom:1px solid var(--border);
-  display:flex;align-items:center;gap:8px;cursor:pointer;
-  transition:background .1s
-}
-.saved-item:hover{background:var(--bg2)}
-.saved-q{flex:1;font-size:12px;color:var(--blue)}
-.saved-del{
-  background:none;border:none;color:var(--text3);cursor:pointer;
-  font-size:14px;padding:2px 4px;line-height:1
-}
-.saved-del:hover{color:var(--red)}
-
-/* RECENT CHIPS */
-#recent{
-  padding:6px 14px 2px;display:flex;flex-wrap:wrap;gap:5px;flex-shrink:0
-}
-#recent:empty{display:none}
-.chip{
-  background:var(--bg3);border:1px solid var(--border);border-radius:10px;
-  padding:2px 9px;font-size:11px;color:var(--text2);cursor:pointer;
-  transition:border-color .15s,color .15s;white-space:nowrap
-}
-.chip:hover{border-color:var(--blue);color:var(--blue)}
-
-/* LOAD MORE */
-#load-more{
-  display:none;width:100%;padding:10px;background:none;border:none;
-  border-top:1px solid var(--border);color:var(--blue);font-size:12px;
-  cursor:pointer;text-align:center;flex-shrink:0
-}
-#load-more:hover{background:var(--bg2)}
-</style>
+<link rel="stylesheet" href="popup.css">
 </head>
 <body>
 
@@ -210,20 +11,31 @@ body{
   <span id="hdr-logo">&#9878;</span>
   <span id="hdr-title">GAW Research Search</span>
   <span id="hdr-sub">Firehose Archive</span>
-  <button id="hdr-saved-btn">&#9733; Saved</button>
+  <button id="hdr-add-btn" title="Can't find a post? Paste its link and we'll add it to the search.">&#8853; Add a Post</button>
+  <button id="hdr-saved-btn" aria-expanded="false" aria-controls="saved-panel">&#9776; My Searches</button>
+</div>
+
+<div id="add-panel" aria-hidden="true">
+  <div id="add-panel-hint">Add a missing post &mdash; paste a full post link (greatawakening.win/p/&hellip;) to index it right now.</div>
+  <div id="add-row">
+    <input id="add-url" type="text" placeholder="https://greatawakening.win/p/..." autocomplete="off" aria-label="greatawakening.win post link to add" maxlength="2048">
+    <button id="btn-add-submit">Add</button>
+  </div>
+  <div id="add-status" role="status" aria-live="polite" aria-atomic="true"></div>
 </div>
 
 <div id="search-wrap">
-  <div id="search-row">
-    <input id="q" type="text" placeholder="Search 33,000+ GAW posts and comments..." autocomplete="off" autofocus>
+  <div id="search-row" role="search">
+    <input id="q" type="text" placeholder="Search 90,000+ GAW posts and comments..." autocomplete="off" autofocus aria-label="Search GAW posts and comments" maxlength="256">
+    <button id="btn-save" title="Save this search" aria-label="Save this search" aria-pressed="false">&#9733;</button>
     <button id="btn-search">Search</button>
   </div>
 </div>
 
-<div id="filter-toggle">
+<button id="filter-toggle" type="button" aria-expanded="false" aria-controls="filters">
   <span id="filter-arrow">&#9658;</span>
   <span id="filter-toggle-txt">Filters</span>
-</div>
+</button>
 
 <div id="filters">
   <div class="f-row">
@@ -234,16 +46,22 @@ body{
   </div>
   <div class="f-row">
     <span class="f-label">Author</span>
-    <input type="text" id="f-author" placeholder="Username">
+    <input type="text" id="f-author" placeholder="Username" aria-label="Filter by author username" maxlength="64">
     <span class="f-label" style="text-align:right;width:40px">Score</span>
     <div class="f-score-wrap">
-      <select id="f-score-op">
+      <select id="f-score-op" aria-label="Score comparison">
         <option value="">Any</option>
         <option value=">=">At least</option>
         <option value=">">More than</option>
       </select>
-      <input type="number" id="f-score-val" placeholder="e.g. 50" min="0">
+      <input type="number" id="f-score-val" placeholder="e.g. 50" min="0" aria-label="Score value">
     </div>
+  </div>
+  <div class="f-row">
+    <span class="f-label">Flair</span>
+    <input type="text" id="f-flair" placeholder="e.g. News, Memes..." aria-label="Filter by flair" maxlength="80">
+    <span class="f-label" style="text-align:right;width:66px">Min &#128172;</span>
+    <input type="number" id="f-min-comments" placeholder="0" min="0" style="flex:0 0 70px" aria-label="Minimum comment count">
   </div>
   <div class="f-row">
     <span class="f-label">Scope</span>
@@ -261,23 +79,23 @@ body{
   </div>
 </div>
 
-<div id="status-bar"></div>
+<div id="status-bar" role="status" aria-live="polite" aria-atomic="true"></div>
 <div id="recent"></div>
 
 <div id="main-content" style="display:flex;flex-direction:column;flex:1;overflow:hidden;min-height:0">
   <div id="results"></div>
   <div id="empty">
     <span class="empty-icon">&#128269;</span>
-    <span class="empty-txt">Search the GAW Firehose archive</span>
-    <span class="empty-hint">33,000+ posts &bull; Full-text search &bull; No login required</span>
+    <span class="empty-txt">Dig the Firehose archive</span>
+    <span class="empty-hint">90,000+ posts &amp; comments &bull; deleted ones too &bull; no login, no tracking</span>
   </div>
-  <button id="load-more">Load more results</button>
+  <button id="load-more">Dig deeper</button>
 </div>
 
 <div id="saved-panel">
   <div id="saved-hdr">
-    <span>Saved Searches</span>
-    <button id="btn-saved-close">&times;</button>
+    <h2>Saved Searches</h2>
+    <button id="btn-saved-close" aria-label="Close saved searches">&times;</button>
   </div>
   <div id="saved-list"></div>
 </div>

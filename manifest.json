@@ -1,9 +1,14 @@
 {
   "manifest_version": 3,
   "name": "GAW Research Search",
-  "version": "2.0.0",
-  "description": "Search the GAW Firehose archive — instant results from 33K+ posts",
+  "version": "2.2.0",
+  "description": "Search the GAW Firehose archive — instant results from 90K+ posts, with flair/comment filters and the ability to add a page yourself",
   "permissions": ["storage"],
+  "host_permissions": ["https://gaw-mod-proxy.gaw-mods-a2f2d0e4.workers.dev/*"],
+  "minimum_chrome_version": "116",
+  "content_security_policy": {
+    "extension_pages": "script-src 'self'; object-src 'self'"
+  },
   "icons": {
     "16": "icons/icon16.png",
     "48": "icons/icon48.png",

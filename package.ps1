@@ -9,7 +9,11 @@
 .EXAMPLE
     pwsh -NoProfile -File "D:\AI\_PROJECTS\gaw-research-search\package.ps1"
 .NOTES
-    Version: 1.0.0
+    This header has no version number of its own -- the number that
+    matters is the extension version, read dynamically from
+    manifest.json at runtime (see $version below). Do not add a
+    hardcoded version here; it would drift from the extension version
+    and confuse the two.
     Requires: PowerShell 5.1+
 #>
 
@@ -30,6 +34,8 @@ $DriveArchive = 'E:\My Drive\_PROJECTS\gaw-research-search'
 
 $log = [System.Collections.Generic.List[string]]::new()
 function Say { param($t, $c='Cyan') Write-Host $t -ForegroundColor $c; $log.Add($t) }
+
+$script:buildFailed = $false
 
 try {
     Say '=== GAW RESEARCH SEARCH PACKAGER ==='
@@ -61,7 +67,8 @@ try {
     }
     if ($missing.Count -gt 0) {
         Say "[FATAL] Missing files: $($missing -join ', ')" Red
-        exit 1
+        $script:buildFailed = $true
+        throw "Missing files: $($missing -join ', ')"
     }
     Say "  All $($files.Count) files present" Green
 
@@ -117,6 +124,7 @@ try {
     Say '======================' Green
 }
 catch {
+    $script:buildFailed = $true
     Say "FAILED: $($_.Exception.Message)" Red
     Say "  at: $($_.InvocationInfo.PositionMessage)" DarkGray
 }
@@ -141,3 +149,5 @@ finally {
     # Pause
     if (-not $NoPause) { Read-Host 'Press Enter to exit' }
 }
+
+if ($script:buildFailed) { exit 1 } else { exit 0 }
