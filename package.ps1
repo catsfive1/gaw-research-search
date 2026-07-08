@@ -54,6 +54,7 @@ try {
         'background.js',
         'popup.html',
         'popup.js',
+        'popup.css',
         'icons\icon16.png',
         'icons\icon48.png',
         'icons\icon128.png'
