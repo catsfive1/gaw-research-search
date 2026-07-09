@@ -1,4 +1,4 @@
-/* GAW Research Search v2.3.0 — Background Service Worker */
+/* GAW Research Search v2.3.1 — Background Service Worker */
 'use strict';
 
 const WORKER_BASE = 'https://gaw-mod-proxy.gaw-mods-a2f2d0e4.workers.dev';
@@ -146,6 +146,10 @@ function sanitizeResultItem(item) {
     body_md: coerceStr(item.body_md),
     body_html: coerceStr(item.body_html),
     content: coerceStr(item.content),
+    // Comment rows' parent-post slug (added alongside the /gaw/search LEFT
+    // JOIN fix) -- coerce like every other server-supplied string field
+    // rather than trusting it unsanitized.
+    post_slug: coerceStr(item.post_slug),
   };
 }
 

@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "GAW Research Search",
-  "version": "2.3.0",
+  "version": "2.3.1",
   "description": "Search the GAW Firehose archive — instant results from 90K+ posts, with flair/comment filters and the ability to add a page yourself",
   "permissions": ["storage"],
   "host_permissions": ["https://gaw-mod-proxy.gaw-mods-a2f2d0e4.workers.dev/*"],

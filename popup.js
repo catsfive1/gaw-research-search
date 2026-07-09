@@ -1,4 +1,4 @@
-/* GAW Research Search v2.3.0 — Popup Logic */
+/* GAW Research Search v2.3.1 — Popup Logic */
 'use strict';
 
 const $ = id => document.getElementById(id);
@@ -98,8 +98,28 @@ function appendHighlighted(parent, text, query) {
   }
 }
 
-function buildGawUrl(post) {
-  if (post.slug) return 'https://greatawakening.win/p/' + post.slug;
+function buildGawUrl(item) {
+  // Comments never have their own slug -- only the parent post does. The
+  // Worker's comment SELECT now LEFT JOINs gaw_posts to attach it as
+  // post_slug specifically so this function can build a real link (was
+  // previously missing entirely, which is what sent mods to the site's
+  // bare front/"new" page instead of the post their comment was in).
+  //
+  // Verified live against greatawakening.win on 2026-07-09 before shipping
+  // this, because the obvious-looking alternatives are actually broken:
+  //   - /p/<raw-numeric-post-id>              -> 500 (slug required, not id)
+  //   - /p/<slug>/x/c/<raw-numeric-comment-id> -> 500 (the real per-comment
+  //     permalink segment is an opaque encoded slug e.g. "4ed43EW5Efx", NOT
+  //     the numeric comment id we store -- we don't capture that value
+  //     anywhere today, so we can't build it)
+  //   - /p/<slug>/x/c/  (no comment id)         -> 200 (comments tab, confirmed)
+  // So this lands on the post's comments tab -- not scrolled to the exact
+  // comment, but a real, working page containing it, not a broken link.
+  if (item._type === 'comment') {
+    if (item.post_slug) return 'https://greatawakening.win/p/' + item.post_slug + '/x/c/';
+    return 'https://greatawakening.win';
+  }
+  if (item.slug) return 'https://greatawakening.win/p/' + item.slug;
   return 'https://greatawakening.win';
 }
 
