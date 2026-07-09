@@ -1,8 +1,32 @@
-# GAW Research Search — Handoff (2026-07-08)
+# GAW Research Search — Handoff (2026-07-09)
 
 ## Status: ready for mod testing
 
 Everything below is verified working as of this handoff, not just "should work."
+
+## v2.3.1 update (2026-07-09): fixed comment links going to the GAW homepage
+
+Mod playtest feedback: clicking a comment result took mods to greatawakening.win's
+bare front/"new" page instead of the post their comment was in. Root cause:
+`buildGawUrl()` in popup.js only ever checked for `item.slug` — comment rows never
+have one (only the parent post does), so every comment link silently fell through
+to the bare-domain fallback.
+
+The fix required live-verifying greatawakening.win before shipping, not just
+pattern-matching existing code: an internal mod-only search page elsewhere in the
+Worker has a `gawUrl()` helper that assumes `/p/<raw-numeric-id>` and
+`/p/<slug>/x/c/<raw-numeric-comment-id>` both work as URLs. Neither does — both
+500 live, confirmed via curl. The site's real per-comment permalink segment is an
+opaque encoded slug (e.g. `4ed43EW5Efx`) this codebase has never captured; only
+the numeric comment id is stored. Shipped fix: the Worker's `/gaw/search` comment
+query now LEFT JOINs `gaw_posts` to attach the parent post's `slug`, and
+`buildGawUrl()` uses it to link to `/p/<slug>/x/c/` — the post's comments tab,
+confirmed 200 live. This lands mods on the actual post containing their comment
+(not scrolled to the exact comment — that would need the crawler to capture the
+real permalink slug, a larger change with no backfill path for the 100K+ already-
+indexed comments) — but it's a real, working page, not a broken or homepage link.
+7 new regression tests in `tests/gaw-url.test.mjs` lock in both the fix and the
+two now-confirmed-broken URL shapes so they can't be reintroduced.
 
 ## v2.3.0 update (2026-07-08): CAT CHOIR red-team remediation
 
@@ -35,14 +59,14 @@ early July.
 - **Database total: 100,872+ posts** (gaw_posts table, gaw-audit D1) — climbing continuously.
 - Quality filter on the bulk crawler: score > 20, comments >= 6 (deliberate submissions via
   the extension's "Add a Post" feature bypass this filter — see below).
-- Extension version: **v2.3.0** (security/reliability hardening pass — see below).
+- Extension version: **v2.3.1** (comment-link fix — see below).
 
 ## Architecture (where everything lives)
 
 | Piece | Path / identifier |
 |---|---|
 | Extension source | `D:\AI\_PROJECTS\gaw-research-search\` (manifest.json, popup.html, popup.js, background.js) |
-| Packaged ZIP | `D:\AI\_PROJECTS\dist\gaw-research-search-v2.3.0.zip` |
+| Packaged ZIP | `D:\AI\_PROJECTS\dist\gaw-research-search-v2.3.1.zip` |
 | Unpacked (Load unpacked target) | `D:\AI\_PROJECTS\dist\gaw-research-search-dist\` |
 | Worker source | `D:\AI\_PROJECTS\cloudflare-worker\gaw-mod-proxy-v2.js` |
 | Worker deployed as | `gaw-mod-proxy` → `https://gaw-mod-proxy.gaw-mods-a2f2d0e4.workers.dev` |

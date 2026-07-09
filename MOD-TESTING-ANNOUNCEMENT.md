@@ -6,13 +6,18 @@
 
 Hey team — new tool for us to test before it goes out to the community.
 
+**v2.3.1 update:** fixed the bug a few of you already hit — clicking a comment
+result was dropping you on the site's front/"new" page instead of the actual
+post. It now takes you to that post's comments tab. Grab the new ZIP below if
+you installed an earlier version.
+
 **What it is:** GAW Research Search, a Chrome extension that searches the *entire* GAW
 archive — every post and comment we've indexed, over 100,000 and growing, including
 removed/deleted ones — instantly, with no login. Built for digging: find old posts by
 author, date, score, flair, whatever.
 
 **How to install it (2 minutes):**
-1. Download the ZIP I'll send you separately: `gaw-research-search-v2.3.0.zip`
+1. Download the ZIP I'll send you separately: `gaw-research-search-v2.3.1.zip`
 2. Unzip it anywhere on your computer.
 3. Open Chrome and go to `chrome://extensions`
 4. Turn on **Developer mode** (top-right toggle).
