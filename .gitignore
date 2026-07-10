@@ -1,2 +1,5 @@
 *.log
 .env
+
+# generated preview artifact (rebuilt from real files via preview/build-preview.mjs)
+preview/index.html

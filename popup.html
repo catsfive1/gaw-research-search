@@ -2,100 +2,188 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<title>GAW Research Search</title>
+<title>GAW: RE-SEARCH</title>
 <link rel="stylesheet" href="popup.css">
 </head>
 <body>
 
-<div id="hdr">
-  <span id="hdr-logo">&#9878;</span>
-  <span id="hdr-title">GAW Research Search</span>
-  <span id="hdr-sub">Firehose Archive</span>
-  <button id="hdr-add-btn" title="Can't find a post? Paste its link and we'll add it to the search.">&#8853; Add a Post</button>
-  <button id="hdr-saved-btn" aria-expanded="false" aria-controls="saved-panel">&#9776; My Searches</button>
-</div>
-
-<div id="add-panel" aria-hidden="true">
-  <div id="add-panel-hint">Add a missing post &mdash; paste a full post link (greatawakening.win/p/&hellip;) to index it right now.</div>
-  <div id="add-row">
-    <input id="add-url" type="text" placeholder="https://greatawakening.win/p/..." autocomplete="off" aria-label="greatawakening.win post link to add" maxlength="2048">
-    <button id="btn-add-submit">Add</button>
-  </div>
-  <div id="add-status" role="status" aria-live="polite" aria-atomic="true"></div>
-</div>
-
-<div id="search-wrap">
-  <div id="search-row" role="search">
-    <input id="q" type="text" placeholder="Search 90,000+ GAW posts and comments..." autocomplete="off" autofocus aria-label="Search GAW posts and comments" maxlength="256">
-    <button id="btn-save" title="Save this search" aria-label="Save this search" aria-pressed="false">&#9733;</button>
-    <button id="btn-search">Search</button>
-  </div>
-</div>
-
-<button id="filter-toggle" type="button" aria-expanded="false" aria-controls="filters">
-  <span id="filter-arrow">&#9658;</span>
-  <span id="filter-toggle-txt">Filters</span>
-</button>
-
-<div id="filters">
-  <div class="f-row">
-    <span class="f-label">Date</span>
-    <input type="date" id="f-date-from" title="From">
-    <span class="f-date-sep">to</span>
-    <input type="date" id="f-date-to" title="To">
-  </div>
-  <div class="f-row">
-    <span class="f-label">Author</span>
-    <input type="text" id="f-author" placeholder="Username" aria-label="Filter by author username" maxlength="64">
-    <span class="f-label" style="text-align:right;width:40px">Score</span>
-    <div class="f-score-wrap">
-      <select id="f-score-op" aria-label="Score comparison">
-        <option value="">Any</option>
-        <option value=">=">At least</option>
-        <option value=">">More than</option>
-      </select>
-      <input type="number" id="f-score-val" placeholder="e.g. 50" min="0" aria-label="Score value">
+<!-- ── STICKY TOP BAR (branding + Search card) ─────────────────────────────── -->
+<div id="topbar">
+  <header id="hdr">
+    <span id="hdr-logo" aria-hidden="true">&#9878;</span>
+    <div id="hdr-titles">
+      <div id="hdr-titlerow">
+        <h1 id="hdr-title">GAW: RE-SEARCH</h1>
+        <span id="hdr-beta">BETA</span>
+      </div>
+      <a id="hdr-tagline" href="https://www.greatawakening.win" target="_blank" rel="noopener">WWW.GREATAWAKENING.WIN</a>
     </div>
+    <button id="hdr-saved-btn" type="button" aria-expanded="false" aria-controls="saved-panel">&#9776; My Searches</button>
+  </header>
+
+  <div id="adv-mode-row">
+    <span id="adv-mode-label">Advanced Mode</span>
+    <button id="adv-toggle" type="button" class="switch" role="switch" aria-checked="false" aria-labelledby="adv-mode-label">
+      <span class="switch-knob" aria-hidden="true"></span>
+    </button>
   </div>
-  <div class="f-row">
-    <span class="f-label">Flair</span>
-    <input type="text" id="f-flair" placeholder="e.g. News, Memes..." aria-label="Filter by flair" maxlength="80">
-    <span class="f-label" style="text-align:right;width:66px">Min &#128172;</span>
-    <input type="number" id="f-min-comments" placeholder="0" min="0" style="flex:0 0 70px" aria-label="Minimum comment count">
-  </div>
-  <div class="f-row">
-    <span class="f-label">Scope</span>
-    <select id="f-scope">
-      <option value="both">Posts &amp; Comments</option>
-      <option value="posts">Posts only</option>
-      <option value="comments">Comments only</option>
-    </select>
-    <span class="f-label" style="text-align:right;width:40px">Sort</span>
-    <select id="f-sort">
-      <option value="relevance">Relevance</option>
-      <option value="date">Newest first</option>
-      <option value="score">Top scored</option>
-    </select>
+
+  <label id="q-label" for="q" hidden>All of these words (required)</label>
+  <div id="search-row" role="search">
+    <input id="q" type="text" placeholder="Search 130,000+ GAW posts and comments..." autocomplete="off" autofocus aria-label="Search GAW posts and comments" maxlength="256">
+    <button id="btn-save" type="button" title="Save this search" aria-label="Save this search" aria-pressed="false">&#9733;</button>
+    <button id="btn-search" type="button">Search</button>
   </div>
 </div>
 
-<div id="status-bar" role="status" aria-live="polite" aria-atomic="true"></div>
-<div id="recent"></div>
+<!-- ── BROWSE REGION (everything except the saved-searches overlay) ─────────── -->
+<div id="browse">
 
-<div id="main-content" style="display:flex;flex-direction:column;flex:1;overflow:hidden;min-height:0">
-  <div id="results"></div>
-  <div id="empty">
-    <span class="empty-icon">&#128269;</span>
-    <span class="empty-txt">Dig the Firehose archive</span>
-    <span class="empty-hint">90,000+ posts &amp; comments &bull; deleted ones too &bull; no login, no tracking</span>
+  <!-- First-run tip -->
+  <div id="intro-tip" role="note" hidden>
+    <span id="intro-tip-txt">New here? Type anything to search 130,000+ GAW posts &amp; comments. Flip <strong>Advanced Mode</strong> for power search.</span>
+    <button id="intro-tip-dismiss" type="button" aria-label="Dismiss tip">&times;</button>
   </div>
-  <button id="load-more">Dig deeper</button>
-</div>
 
-<div id="saved-panel">
+  <!-- Advanced Search card (revealed only in Advanced Mode) -->
+  <section class="card" id="card-advanced" hidden>
+    <button class="card-hdr" id="adv-card-hdr" type="button" aria-expanded="true" aria-controls="adv-card-body">
+      <span class="card-arrow" aria-hidden="true">&#9654;</span>
+      <span class="card-title">Advanced Search</span>
+    </button>
+    <div class="card-body" id="adv-card-body">
+      <div class="adv-field">
+        <label class="adv-label" for="adv-exact">This exact phrase</label>
+        <input id="adv-exact" type="text" class="adv-input" placeholder="e.g. election integrity" autocomplete="off" maxlength="256" aria-label="This exact phrase">
+      </div>
+      <div class="adv-field">
+        <label class="adv-label" for="adv-any">Any of these words (OR)</label>
+        <input id="adv-any" type="text" class="adv-input" placeholder="cat, dog, bird" autocomplete="off" maxlength="256" aria-label="Any of these words">
+      </div>
+      <div class="adv-field">
+        <label class="adv-label" for="adv-exclude">Exclude these words (NOT)</label>
+        <input id="adv-exclude" type="text" class="adv-input" placeholder="fauci gates" autocomplete="off" maxlength="256" aria-label="Exclude these words">
+      </div>
+      <div id="dsl-preview-wrap">
+        <span id="dsl-preview-label">Compiled query</span>
+        <code id="dsl-preview" aria-live="polite"></code>
+      </div>
+    </div>
+  </section>
+
+  <!-- Filters card (collapsed by default) -->
+  <section class="card" id="card-filters">
+    <button class="card-hdr" id="filters-hdr" type="button" aria-expanded="false" aria-controls="filters-body">
+      <span class="card-arrow" aria-hidden="true">&#9654;</span>
+      <span class="card-title">Filters</span>
+      <span class="card-badge" id="filters-badge" hidden>0</span>
+    </button>
+    <div class="card-body" id="filters-body" hidden>
+      <div class="f-row">
+        <span class="f-label">Date</span>
+        <select id="f-date-preset" class="f-grow" aria-label="Date range preset">
+          <option value="">Any time</option>
+          <option value="24h">Past 24 hours</option>
+          <option value="7d">Past 7 days</option>
+          <option value="30d">Past 30 days</option>
+          <option value="custom">Custom range&hellip;</option>
+        </select>
+      </div>
+      <div class="f-row" id="date-custom-row" hidden>
+        <span class="f-label f-label-sub">Range</span>
+        <input type="date" id="f-date-from" title="From" aria-label="From date">
+        <span class="f-date-sep">to</span>
+        <input type="date" id="f-date-to" title="To" aria-label="To date">
+      </div>
+      <div class="f-row">
+        <span class="f-label">Author</span>
+        <input type="text" id="f-author" placeholder="Username" aria-label="Filter by author username" maxlength="64">
+      </div>
+      <div class="f-row">
+        <span class="f-label">Score</span>
+        <div class="f-score-wrap">
+          <select id="f-score-op" aria-label="Score comparison">
+            <option value="">Any</option>
+            <option value=">=">At least</option>
+            <option value=">">More than</option>
+          </select>
+          <input type="number" id="f-score-val" placeholder="e.g. 50" min="0" aria-label="Score value">
+        </div>
+      </div>
+      <div class="f-row">
+        <span class="f-label">Flair</span>
+        <input type="text" id="f-flair" placeholder="e.g. News, Memes..." aria-label="Filter by flair" maxlength="80">
+      </div>
+      <div class="f-row">
+        <span class="f-label">Min &#128172;</span>
+        <input type="number" id="f-min-comments" placeholder="0" min="0" aria-label="Minimum comment count">
+      </div>
+      <div class="f-row">
+        <span class="f-label">Scope</span>
+        <select id="f-scope" class="f-grow" aria-label="Search scope">
+          <option value="both">Posts &amp; Comments</option>
+          <option value="posts">Posts only</option>
+          <option value="comments">Comments only</option>
+        </select>
+      </div>
+      <div class="f-row">
+        <span class="f-label">Sort</span>
+        <select id="f-sort" class="f-grow" aria-label="Sort order">
+          <option value="relevance">Relevance</option>
+          <option value="date">Newest first</option>
+          <option value="score">Top scored</option>
+        </select>
+      </div>
+    </div>
+  </section>
+
+  <!-- Add a Post card (collapsed by default) -->
+  <section class="card" id="card-add">
+    <button class="card-hdr" id="add-hdr" type="button" aria-expanded="false" aria-controls="add-body">
+      <span class="card-arrow" aria-hidden="true">&#9654;</span>
+      <span class="card-title">&#8853; Add a Post</span>
+    </button>
+    <div class="card-body" id="add-body" hidden>
+      <div id="add-panel-hint">Can't find a post? Paste a full post link (greatawakening.win/p/&hellip;) to index it right now.</div>
+      <div id="add-row">
+        <input id="add-url" type="text" placeholder="https://greatawakening.win/p/..." autocomplete="off" aria-label="greatawakening.win post link to add" maxlength="2048">
+        <button id="btn-add-submit" type="button">Add</button>
+      </div>
+      <div id="add-status" role="status" aria-live="polite" aria-atomic="true"></div>
+    </div>
+  </section>
+
+  <!-- Recent searches -->
+  <div id="recent-wrap" hidden>
+    <span id="recent-label">Recent</span>
+    <div id="recent"></div>
+  </div>
+
+  <!-- Status / countdown line -->
+  <div id="status-bar" role="status" aria-live="polite" aria-atomic="true"></div>
+
+  <!-- Results -->
+  <div id="main-content">
+    <div id="results-toolbar" hidden>
+      <span id="results-count"></span>
+      <button id="btn-copy-results" type="button">&#128203; Copy results</button>
+    </div>
+    <div id="results"></div>
+    <div id="empty">
+      <span class="empty-icon" aria-hidden="true">&#128269;</span>
+      <span class="empty-txt">Dig the archive</span>
+      <span class="empty-hint">130,000+ posts &amp; comments &bull; no login, no tracking</span>
+    </div>
+    <button id="load-more" type="button">Dig deeper</button>
+  </div>
+
+</div><!-- /#browse -->
+
+<!-- ── SAVED SEARCHES OVERLAY ───────────────────────────────────────────────── -->
+<div id="saved-panel" hidden>
   <div id="saved-hdr">
     <h2>Saved Searches</h2>
-    <button id="btn-saved-close" aria-label="Close saved searches">&times;</button>
+    <button id="btn-saved-close" type="button" aria-label="Close saved searches">&times;</button>
   </div>
   <div id="saved-list"></div>
 </div>

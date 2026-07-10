@@ -50,13 +50,19 @@ node --test tests/url-normalization.test.mjs
 
 | File | Covers |
 |---|---|
-| `_extract.mjs` | shared helper (not a test file itself) |
+| `_extract.mjs` | shared helper (not a test file itself) — standalone-slice technique |
+| `_sandbox.mjs` | shared helper (not a test file itself) — whole-file fake-DOM `vm` sandbox for popup.js (technique 2), used by the v2.4.0 DOM-coupled tests below |
 | `url-normalization.test.mjs` | `normalizeGawUrl()`, `looksLikeGawPostUrl()` (both popup.js and background.js copies) |
 | `dsl-and-dates.test.mjs` | `quoteDslValue()`, `formatDate()` |
 | `message-validation.test.mjs` | `clampInt()`, `validateSearchOpts()`, `sanitizeQueryString()` (background.js message trust boundary) |
 | `search-state.test.mjs` | `captureSearchState()` / `restoreSearchState()` round-trip, `hasActiveFilters()`, `countActiveFilters()` |
 | `merge-sort.test.mjs` | `mergeSortedDesc()` (P1-7 posts+comments merge) |
 | `dom-rendering.test.mjs` | `appendHighlighted()`, `buildResultCard()`, `excerpt()` — confirms the post-rewrite DOM-construction path never produces live markup from untrusted strings |
+| `advanced-dsl.test.mjs` | v2.4.0 Advanced Search card → DSL compilation in `buildQuery()` + `hasPositiveTerm()` (exact-phrase / any-group / exclude / combined; proves no raw FTS metachar leaks from an advanced field) |
+| `date-presets.test.mjs` | v2.4.0 relative-date presets → `date:` DSL (`isoDaysAgo()`, `applyDatePreset()`, `buildDateDsl()`); fixed-clock (2026-07-10) for determinism |
+| `copy-results.test.mjs` | v2.4.0 "Copy results" markdown formatter (`copyResults()`), driven through the real `renderResults()` populate path |
+| `worker-any-group.test.mjs` | v2.4.0 `any:` OR-group grammar in the Worker's `parseGodmodeQuery()` (sliced from `../../cloudflare-worker/gaw-mod-proxy-v2.js`) + regression coverage of the existing DSL tokens |
+| `anti-hammer.test.mjs` | v2.4.0 client anti-hammer in background.js: token bucket (`createBucket`/`refillBucket`/`takeToken`), LRU TTL cache (`cacheGet`/`cacheSet`), `parseRetryAfterHeaderMs()`, and the cache→dedup→rate-limit funnel in `handleSearch()` |
 
 ## Scope (deliberately out)
 

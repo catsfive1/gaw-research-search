@@ -3,6 +3,9 @@
 
 const WORKER_BASE = 'https://gaw-mod-proxy.gaw-mods-a2f2d0e4.workers.dev';
 
+// ── §4.5: soft client-identity header sent on every worker fetch ──
+const CLIENT_ID = 'research-ext/2.4.0';
+
 // ── P1-9: in-memory debug ring buffer (no secrets/tokens — timings/status only) ──
 const DEBUG_LOG_MAX = 20;
 let debugLog = [];
@@ -28,6 +31,8 @@ async function fetchJsonWithTimeout(url, options = {}, timeoutMs = 15000) {
   try {
     const resp = await fetch(url, { ...options, signal: controller.signal });
     const durationMs = Date.now() - start;
+    // §4.4: expose the server's Retry-After (ms) so callers can back off.
+    const retryAfterMs = parseRetryAfterHeaderMs(resp.headers.get('Retry-After'));
     const data = await resp.json().catch(() => null);
     if (!resp.ok) {
       return {
@@ -37,9 +42,10 @@ async function fetchJsonWithTimeout(url, options = {}, timeoutMs = 15000) {
         error: (data && data.error) || ('HTTP ' + resp.status),
         timedOut: false,
         durationMs,
+        retryAfterMs,
       };
     }
-    return { ok: true, status: resp.status, data, error: null, timedOut: false, durationMs };
+    return { ok: true, status: resp.status, data, error: null, timedOut: false, durationMs, retryAfterMs };
   } catch (e) {
     const durationMs = Date.now() - start;
     const timedOut = e && e.name === 'AbortError';
@@ -50,11 +56,84 @@ async function fetchJsonWithTimeout(url, options = {}, timeoutMs = 15000) {
       error: timedOut ? 'Request timed out.' : (e && e.message) || String(e),
       timedOut,
       durationMs,
+      retryAfterMs: null,
     };
   } finally {
     clearTimeout(timer);
   }
 }
+
+// ── v2.4.0 CLIENT-SIDE ANTI-HAMMER (spec §4) ─────────────────────────────────
+// These guards sit IN FRONT of the existing network path (doSearch/submitUrl).
+// They never replace or weaken the sanitizers / timeout wrapper. A human never
+// trips them; a loop trips them immediately.
+
+// Parse an HTTP Retry-After header value into milliseconds (null if absent/bad).
+// Accepts delta-seconds ("120") or an HTTP-date; clamps to 1 hour.
+function parseRetryAfterHeaderMs(headerVal) {
+  if (headerVal == null || headerVal === '') return null;
+  const s = String(headerVal).trim();
+  if (/^\d+$/.test(s)) {
+    const secs = parseInt(s, 10);
+    return Number.isFinite(secs) ? Math.min(secs * 1000, 3600000) : null;
+  }
+  const dateMs = Date.parse(s);
+  if (Number.isFinite(dateMs)) {
+    const delta = dateMs - Date.now();
+    return delta > 0 ? Math.min(delta, 3600000) : 0;
+  }
+  return null;
+}
+
+// §4.1 Token-bucket rate limiter (in-memory, per-SW-lifetime). Lazy refill:
+// tokens accrue on read from elapsed time, so no timers are needed.
+function createBucket(capacity, refillIntervalMs) {
+  return { capacity, tokens: capacity, refillIntervalMs, lastRefill: Date.now(), pausedUntil: 0 };
+}
+function refillBucket(b, now) {
+  if (b.tokens >= b.capacity) { b.lastRefill = now; return; }
+  const elapsed = now - b.lastRefill;
+  if (elapsed < b.refillIntervalMs) return;
+  const add = Math.floor(elapsed / b.refillIntervalMs);
+  b.tokens = Math.min(b.capacity, b.tokens + add);
+  b.lastRefill += add * b.refillIntervalMs;
+}
+// Consume one token. Returns { ok:true } or { ok:false, retryAfterMs }.
+// Honors a server-imposed pause window (set on 429/503, §4.4).
+function takeToken(b, now) {
+  if (now < b.pausedUntil) return { ok: false, retryAfterMs: b.pausedUntil - now };
+  refillBucket(b, now);
+  if (b.tokens >= 1) { b.tokens -= 1; return { ok: true }; }
+  const sinceRefill = now - b.lastRefill;
+  const retryAfterMs = Math.max(0, b.refillIntervalMs - sinceRefill) || b.refillIntervalMs;
+  return { ok: false, retryAfterMs };
+}
+
+const SEARCH_BUCKET = createBucket(20, 3000);   // ~20 burst, then ~20/min sustained
+const SUBMIT_BUCKET = createBucket(5, 12000);   // light guard; worker also IP-limits submit
+const SERVER_BUSY_DEFAULT_MS = 10000;           // pause window when a 429/503 sends no Retry-After
+
+// §4.2 Short-TTL result cache. Map is insertion-ordered → cheap LRU eviction.
+const SEARCH_CACHE_TTL_MS = 60000;
+const SEARCH_CACHE_MAX = 30;
+const searchCache = new Map(); // key -> { ts, response }
+function cacheGet(key, now) {
+  const entry = searchCache.get(key);
+  if (!entry) return null;
+  if (now - entry.ts > SEARCH_CACHE_TTL_MS) { searchCache.delete(key); return null; }
+  searchCache.delete(key); searchCache.set(key, entry); // LRU: bump to most-recent
+  return entry.response;
+}
+function cacheSet(key, response, now) {
+  if (searchCache.has(key)) searchCache.delete(key);
+  searchCache.set(key, { ts: now, response });
+  while (searchCache.size > SEARCH_CACHE_MAX) {
+    searchCache.delete(searchCache.keys().next().value); // evict oldest
+  }
+}
+
+// §4.3 In-flight de-dup / coalescing: identical live 'search' → one promise.
+const inFlightSearches = new Map(); // key -> Promise<response>
 
 // ── P1-2: schema/type validation helpers for stored values ──
 function sanitizeQueryString(q, maxLen = 512) {
@@ -202,7 +281,7 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
       return false;
     }
     const opts = validateSearchOpts(msg.opts);
-    doSearch(query, opts).then(sendResponse).catch(e =>
+    handleSearch(query, opts).then(sendResponse).catch(e =>
       sendResponse({ ok: false, error: e.message || String(e) })
     );
     return true;
@@ -270,6 +349,12 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
       sendResponse({ ok: false, error: 'Not a valid greatawakening.win post link.' });
       return false;
     }
+    // §4.1: light client bucket (worker also IP-limits submit-url server-side).
+    const submitTake = takeToken(SUBMIT_BUCKET, Date.now());
+    if (!submitTake.ok) {
+      sendResponse({ ok: false, error: 'rate_limited', retryAfterMs: submitTake.retryAfterMs });
+      return false;
+    }
     submitUrl(url).then(sendResponse).catch(e =>
       sendResponse({ ok: false, error: e.message || String(e) })
     );
@@ -288,7 +373,7 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
 async function submitUrl(url) {
   const result = await fetchJsonWithTimeout(WORKER_BASE + '/gaw/submit-url', {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: { 'Content-Type': 'application/json', 'X-GAW-Client': CLIENT_ID },
     body: JSON.stringify({ url }),
   });
   logDebug({
@@ -305,6 +390,44 @@ async function submitUrl(url) {
   return result.data;
 }
 
+// §4 guard funnel: cache -> dedup -> rate-limit -> network. Sits IN FRONT of
+// doSearch; doSearch still owns all response validation/sanitization.
+async function handleSearch(query, opts) {
+  const key = JSON.stringify({ query, opts });
+  const now = Date.now();
+
+  // §4.2 cache hit — no token, no network.
+  const cached = cacheGet(key, now);
+  if (cached) {
+    logDebug({ action: 'search', endpoint: '/gaw/search', served: 'cache' });
+    return cached;
+  }
+
+  // §4.3 identical request already in flight — coalesce; no token, no 2nd request.
+  const pending = inFlightSearches.get(key);
+  if (pending) {
+    logDebug({ action: 'search', endpoint: '/gaw/search', served: 'dedup' });
+    return pending;
+  }
+
+  // §4.1 / §4.4 token bucket (also enforces any active server-pause window).
+  const take = takeToken(SEARCH_BUCKET, now);
+  if (!take.ok) {
+    logDebug({ action: 'search', endpoint: '/gaw/search', guard: 'rate_limited', retryAfterMs: take.retryAfterMs });
+    return { ok: false, error: 'rate_limited', retryAfterMs: take.retryAfterMs };
+  }
+
+  const p = doSearch(query, opts);
+  inFlightSearches.set(key, p);
+  try {
+    const resp = await p;
+    if (resp && resp.ok === true) cacheSet(key, resp, Date.now());
+    return resp;
+  } finally {
+    inFlightSearches.delete(key);
+  }
+}
+
 async function doSearch(query, opts) {
   const params = new URLSearchParams();
   params.set('godmode', '1');
@@ -315,7 +438,7 @@ async function doSearch(query, opts) {
   params.set('offset', String(opts.offset));
 
   const result = await fetchJsonWithTimeout(WORKER_BASE + '/gaw/search?' + params, {
-    headers: { Accept: 'application/json' },
+    headers: { Accept: 'application/json', 'X-GAW-Client': CLIENT_ID },
   });
   logDebug({
     action: 'search',
@@ -326,6 +449,13 @@ async function doSearch(query, opts) {
     timedOut: result.timedOut,
   });
   if (!result.ok) {
+    // §4.4 server-backoff: worker is shedding load -> surface a distinct shape
+    // and pause the local bucket so the SW stops hammering during the window.
+    if (result.status === 429 || result.status === 503) {
+      const retryAfterMs = result.retryAfterMs != null ? result.retryAfterMs : SERVER_BUSY_DEFAULT_MS;
+      SEARCH_BUCKET.pausedUntil = Date.now() + retryAfterMs;
+      return { ok: false, error: 'server_busy', httpStatus: result.status, retryAfterMs };
+    }
     return { ok: false, error: result.error, timedOut: result.timedOut };
   }
   return validateSearchResponse(result.data || {});

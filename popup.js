@@ -1,4 +1,4 @@
-/* GAW Research Search v2.3.1 — Popup Logic */
+/* GAW: RE-SEARCH v2.4.0 — Popup Logic */
 'use strict';
 
 const $ = id => document.getElementById(id);
@@ -11,26 +11,52 @@ let totalLoaded = 0;
 let isLoading = false;
 let isSubmittingUrl = false; // P1-8: explicit in-flight guard, belt-and-suspenders w/ addSubmit.disabled
 let lastFocusedBeforeSaved = null;
-let lastFocusedBeforeAdd = null;
+let advancedMode = false;    // v2.4.0: persisted in chrome.storage.local 'advancedMode'
+let loadedItems = [];        // v2.4.0: currently-loaded results (for Copy results)
+let backoffTimer = null;     // v2.4.0: single active rate-limit/server-busy countdown
 
 // Elements
-const qEl        = $('q');
-const btnSearch  = $('btn-search');
-const statusBar  = $('status-bar');
-const resultsEl  = $('results');
-const emptyEl    = $('empty');
-const loadMore   = $('load-more');
-const recentEl   = $('recent');
-const filterTog  = $('filter-toggle');
-const filtersEl  = $('filters');
-const savedPanel = $('saved-panel');
-const savedList  = $('saved-list');
-const btnSave    = $('btn-save');
-const addBtn     = $('hdr-add-btn');
-const addPanel   = $('add-panel');
-const addUrl     = $('add-url');
-const addSubmit  = $('btn-add-submit');
-const addStatus  = $('add-status');
+const qEl          = $('q');
+const qLabel       = $('q-label');
+const btnSearch    = $('btn-search');
+const btnSave      = $('btn-save');
+const statusBar    = $('status-bar');
+const resultsEl    = $('results');
+const emptyEl      = $('empty');
+const loadMore     = $('load-more');
+const recentEl     = $('recent');
+const recentWrap   = $('recent-wrap');
+const browseEl     = $('browse');
+const savedPanel   = $('saved-panel');
+const savedList    = $('saved-list');
+// Advanced Mode
+const advToggle    = $('adv-toggle');
+const cardAdvanced = $('card-advanced');
+const advCardHdr   = $('adv-card-hdr');
+const advCardBody  = $('adv-card-body');
+const advExact     = $('adv-exact');
+const advAny       = $('adv-any');
+const advExclude   = $('adv-exclude');
+const dslPreview   = $('dsl-preview');
+// Filters card
+const filtersHdr   = $('filters-hdr');
+const filtersBody  = $('filters-body');
+const filtersBadge = $('filters-badge');
+const datePreset   = $('f-date-preset');
+const dateCustomRow = $('date-custom-row');
+// Add card
+const addHdr       = $('add-hdr');
+const addBody      = $('add-body');
+const addUrl       = $('add-url');
+const addSubmit    = $('btn-add-submit');
+const addStatus    = $('add-status');
+// Results toolbar
+const resultsToolbar = $('results-toolbar');
+const resultsCount   = $('results-count');
+const btnCopyResults = $('btn-copy-results');
+// First-run tip
+const introTip     = $('intro-tip');
+const introDismiss = $('intro-tip-dismiss');
 
 // ── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -148,38 +174,110 @@ function capLen(s, max) {
   return String(s == null ? '' : s).slice(0, max);
 }
 
-// ── Filters → query string ──────────────────────────────────────────────────
+// ── Advanced-field term cleaning (v2.4.0) ────────────────────────────────────
+// The `any:` OR-group and `-exclude` terms must NEVER carry raw FTS5 operators
+// into the q string. Keep only word chars + a trailing-prefix '*', strip all
+// metachars/quotes/colons/commas (the delimiters we build the DSL from), and
+// cap each term. The worker ALSO re-strips server-side (defense in depth), but
+// the client refuses to compose anything unsafe in the first place.
+function cleanTerm(w) {
+  return String(w == null ? '' : w).replace(/[^0-9A-Za-z_*]/g, '').slice(0, 64);
+}
+function cleanTermList(raw, maxTerms = 10) {
+  return String(raw == null ? '' : raw)
+    .split(/[\s,]+/)
+    .map(cleanTerm)
+    .filter(Boolean)
+    .slice(0, maxTerms);
+}
 
+// ── Date DSL (v2.4.0) ────────────────────────────────────────────────────────
+// The worker's parseGodmodeQuery only accepts the range form
+// `date:YYYY-MM-DD..YYYY-MM-DD` (either side optional) -- NOT `date:>=X`.
+// The relative-date presets write absolute YYYY-MM-DD values into the
+// #f-date-from / #f-date-to inputs, so this reads them as the single source of
+// truth and emits the worker-supported range token. Values are validated
+// against the strict ISO shape so nothing else can ride into the q string.
+const ISO_DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
+function buildDateDsl() {
+  const rawFrom = $('f-date-from').value;
+  const rawTo   = $('f-date-to').value;
+  const from = ISO_DATE_RE.test(rawFrom) ? rawFrom : '';
+  const to   = ISO_DATE_RE.test(rawTo)   ? rawTo   : '';
+  if (!from && !to) return '';
+  return 'date:' + from + '..' + to;
+}
+
+// ── Filters + advanced fields → query string ─────────────────────────────────
+// buildQuery composes: [main box terms] + (advanced: [exact phrase] +
+// [any-group] + [exclude terms]) + [filter restrictors]. When Advanced Mode is
+// OFF, only the main box + filters contribute (v2.3.x behavior). Every value is
+// quoted (quoteDslValue) or per-term sanitized (cleanTerm) -- never raw text.
 function buildQuery() {
-  let q = capLen(qEl.value.trim(), MAX_TEXT_LEN);
-  if (!q) return '';
+  const parts = [];
 
-  const author      = capLen($('f-author').value.trim(), MAX_AUTHOR_LEN);
-  const dateFrom    = $('f-date-from').value;
-  const dateTo      = $('f-date-to').value;
-  const scoreOp     = $('f-score-op').value;
-  const scoreValRaw = $('f-score-val').value.trim();
-  const flair       = capLen($('f-flair').value.trim(), MAX_FLAIR_LEN);
-  const minCommentsRaw = $('f-min-comments').value.trim();
+  const main = capLen(qEl.value.trim(), MAX_TEXT_LEN);
+  if (main) parts.push(main);
 
-  if (author)   q += ' author:' + quoteDslValue(author);
-  if (dateFrom) q += ' date:>=' + dateFrom;
-  if (dateTo)   q += ' date:<=' + dateTo;
+  if (advancedMode) {
+    // Exact phrase -> a single quoted FTS5 phrase token. Strip embedded quotes
+    // and newlines so the token can't break out of its own phrase.
+    const phrase = capLen(advExact.value, MAX_TEXT_LEN).replace(/["\r\n]+/g, ' ').trim();
+    if (phrase) parts.push('"' + phrase + '"');
+
+    // Any-of -> any:w1,w2,w3 (worker compiles the OR-group from its own literals).
+    const anyTerms = cleanTermList(advAny.value);
+    if (anyTerms.length) parts.push('any:' + anyTerms.join(','));
+
+    // Exclude -> -word each (cleaned).
+    cleanTermList(advExclude.value).forEach(w => parts.push('-' + w));
+  }
+
+  // Filter restrictors (apply in both modes).
+  const author = capLen($('f-author').value.trim(), MAX_AUTHOR_LEN);
+  if (author) parts.push('author:' + quoteDslValue(author));
+
+  const dateDsl = buildDateDsl();
+  if (dateDsl) parts.push(dateDsl);
 
   // score/minComments are numeric-only inputs -- validate they actually parse
   // as integers before use, ignoring non-numeric garbage rather than smuggling
   // it into the DSL string.
+  const scoreOp     = $('f-score-op').value;
+  const scoreValRaw = $('f-score-val').value.trim();
   if (scoreOp && scoreValRaw !== '') {
     const scoreVal = parseInt(scoreValRaw, 10);
-    if (Number.isFinite(scoreVal)) q += ' score:' + scoreOp + scoreVal;
-  }
-  if (flair) q += ' flair:' + quoteDslValue(flair);
-  if (minCommentsRaw !== '') {
-    const minComments = parseInt(minCommentsRaw, 10);
-    if (Number.isFinite(minComments) && minComments >= 0) q += ' min_comments:' + minComments;
+    if (Number.isFinite(scoreVal)) parts.push('score:' + scoreOp + scoreVal);
   }
 
-  return q;
+  const flair = capLen($('f-flair').value.trim(), MAX_FLAIR_LEN);
+  if (flair) parts.push('flair:' + quoteDslValue(flair));
+
+  const minCommentsRaw = $('f-min-comments').value.trim();
+  if (minCommentsRaw !== '') {
+    const minComments = parseInt(minCommentsRaw, 10);
+    if (Number.isFinite(minComments) && minComments >= 0) parts.push('min_comments:' + minComments);
+  }
+
+  return parts.join(' ');
+}
+
+// A query is searchable only if it has at least one POSITIVE FTS term (the
+// worker rejects filter-only / exclude-only queries). Mirrors the composition
+// rules in buildQuery so we never fire a request the worker will bounce.
+function hasPositiveTerm() {
+  if (capLen(qEl.value.trim(), MAX_TEXT_LEN)) return true;
+  if (advancedMode) {
+    const phrase = capLen(advExact.value, MAX_TEXT_LEN).replace(/["\r\n]+/g, ' ').trim();
+    if (phrase) return true;
+    if (cleanTermList(advAny.value).length) return true;
+  }
+  return false;
+}
+
+function updateDslPreview() {
+  if (!dslPreview) return;
+  dslPreview.textContent = buildQuery();
 }
 
 function buildOpts(offset = 0) {
@@ -254,6 +352,14 @@ function restoreSearchState(state) {
   $('f-min-comments').value = state.minComments === '' || state.minComments == null ? '' : String(state.minComments);
   $('f-scope').value = state.scope || 'both';
   $('f-sort').value = state.sort || 'relevance';
+  // v2.4.0: sync the date-preset UI to the restored absolute dates. Relative
+  // presets are snapshotted to absolute YYYY-MM-DD at capture time, so a saved
+  // "Past 7 days" restores as a Custom range with those concrete dates.
+  const hasDates = Boolean(state.dateFrom || state.dateTo);
+  const dp = $('f-date-preset');
+  if (dp) dp.value = hasDates ? 'custom' : '';
+  const dcr = $('date-custom-row');
+  if (dcr) dcr.hidden = !hasDates;
 }
 
 // ── Render results ──────────────────────────────────────────────────────────
@@ -379,6 +485,8 @@ function renderResults(data, append = false) {
   }
 
   if (!append && items.length === 0) {
+    loadedItems = [];
+    resultsToolbar.hidden = true;
     emptyEl.style.display = 'flex';
     emptyEl.querySelector('.empty-icon').textContent = '🔍';
     emptyEl.querySelector('.empty-txt').textContent  = 'No digs match that yet';
@@ -392,6 +500,9 @@ function renderResults(data, append = false) {
   items.forEach(item => {
     resultsEl.appendChild(buildResultCard(item, lastQuery));
   });
+
+  loadedItems = loadedItems.concat(items);
+  updateResultsToolbar();
 
   totalLoaded += items.length;
   loadMore.style.display = items.length >= 25 ? 'block' : 'none';
@@ -413,22 +524,94 @@ function mergeSortedDesc(a, b, key) {
   return out;
 }
 
+// ── Results toolbar / Copy results (v2.4.0) ──────────────────────────────────
+
+function updateResultsToolbar() {
+  const n = loadedItems.length;
+  if (n > 0) {
+    resultsToolbar.hidden = false;
+    resultsCount.textContent = n + (n === 1 ? ' result' : ' results') + ' loaded';
+  } else {
+    resultsToolbar.hidden = true;
+  }
+}
+
+// Copies ONLY the currently-loaded, on-screen results as a markdown list.
+// Bounded to what the user has already pulled -- not a bulk harvest vector.
+function copyResults() {
+  if (!loadedItems.length) return;
+  const lines = loadedItems.map(item => {
+    const isComment = item._type === 'comment';
+    const title  = item.title || (isComment ? 'Comment on post #' + item.post_id : 'Untitled');
+    const url    = buildGawUrl(item);
+    const author = item.author ? '@' + item.author : '@unknown';
+    const score  = Number.isFinite(item.score) ? item.score : 0;
+    const date   = formatDate(item.created_at);
+    const tag    = isComment ? ' (comment)' : '';
+    return '- [' + title + '](' + url + ') — ' + author + ' · ' + score + ' pts · ' + date + tag;
+  });
+  navigator.clipboard.writeText(lines.join('\n')).then(() => {
+    const n = loadedItems.length;
+    resultsCount.textContent = 'Copied ' + n + ' result' + (n === 1 ? '' : 's');
+    setTimeout(updateResultsToolbar, 1600);
+  }).catch(() => {
+    resultsCount.textContent = 'Copy failed — try again';
+    setTimeout(updateResultsToolbar, 1600);
+  });
+}
+
+// ── Friendly rate-limit / server-busy backoff (v2.4.0 §4.4) ──────────────────
+
+function clearBackoff() {
+  if (backoffTimer) { clearTimeout(backoffTimer); backoffTimer = null; }
+}
+
+// Renders a calm countdown for guard/server limiting -- never a scary error.
+function showBackoff(data) {
+  clearBackoff();
+  let ms = Number(data && data.retryAfterMs);
+  if (!Number.isFinite(ms) || ms < 1000) ms = 3000;
+  if (ms > 60000) ms = 60000;
+  let secs = Math.ceil(ms / 1000);
+  btnSearch.disabled = true;
+  const lead = data && data.error === 'server_busy'
+    ? 'The archive is catching its breath'
+    : 'Easy there — one sec';
+  const tick = () => {
+    if (secs <= 0) {
+      clearBackoff();
+      btnSearch.disabled = false;
+      status('Ready — try that search again.', '');
+      return;
+    }
+    status(lead + '… ready in ' + secs + 's', 'backoff');
+    secs -= 1;
+    backoffTimer = setTimeout(tick, 1000);
+  };
+  tick();
+}
+
 // ── Search ──────────────────────────────────────────────────────────────────
 
 async function doSearch(append = false) {
   if (isLoading) return;
+  if (!hasPositiveTerm()) { qEl.focus(); return; }
   const q = buildQuery();
   if (!q) { qEl.focus(); return; }
 
+  clearBackoff();
   isLoading = true;
   btnSearch.disabled = true;
   status('Digging through the archive…', 'loading');
+  let inBackoff = false;
 
   if (!append) {
     lastQuery     = capLen(qEl.value.trim(), MAX_TEXT_LEN);
     lastOpts      = buildOpts(0);
     currentOffset = 0;
     totalLoaded   = 0;
+    loadedItems   = [];
+    resultsToolbar.hidden = true;
     resultsEl.innerHTML = '';
     emptyEl.style.display = 'none';
     loadMore.style.display = 'none';
@@ -440,6 +623,13 @@ async function doSearch(append = false) {
 
     if (!data) {
       status('Couldn’t reach the archive — check your connection and try again.', 'error');
+      return;
+    }
+
+    // Client-guard / server-backoff: calm countdown, never an error card.
+    if (data.error === 'rate_limited' || data.error === 'server_busy') {
+      inBackoff = true;
+      showBackoff(data);
       return;
     }
 
@@ -473,11 +663,14 @@ async function doSearch(append = false) {
       renderRecent();
       updateSaveBtn(lastQuery);
     }
+    updateFilterBadge();
   } catch (e) {
     status('Couldn’t reach the archive — check your connection and try again.', 'error');
   } finally {
     isLoading = false;
-    btnSearch.disabled = false;
+    // Leave the button disabled while a backoff countdown owns it; showBackoff
+    // re-enables when the countdown ends.
+    if (!inBackoff) btnSearch.disabled = false;
   }
 }
 
@@ -505,10 +698,13 @@ async function renderRecent() {
     chip.addEventListener('click', () => {
       if (state) restoreSearchState(state);
       else qEl.value = q;
+      updateFilterBadge();
+      updateDslPreview();
       doSearch();
     });
     recentEl.appendChild(chip);
   });
+  recentWrap.hidden = list.length === 0;
 }
 
 // ── Save button ──────────────────────────────────────────────────────────────
@@ -556,6 +752,11 @@ function friendlySubmitError(data, httpStatus) {
   return (data && data.error) || 'Couldn’t pull that one in — try again?';
 }
 
+function collapseAddCard() {
+  addHdr.setAttribute('aria-expanded', 'false');
+  addBody.hidden = true;
+}
+
 async function submitUrl() {
   // P1-8: explicit in-flight guard in addition to addSubmit.disabled -- rapid
   // Enter+click sequences can race past a disabled-attribute check alone.
@@ -590,7 +791,7 @@ async function submitUrl() {
     addStatus.className = 'success';
     addUrl.value = '';
     setTimeout(() => {
-      if (addStatus.className === 'success') closeAddPanel();
+      if (addStatus.className === 'success') collapseAddCard();
     }, 2500);
   } catch (e) {
     addStatus.textContent = 'Couldn’t reach the archive — check your connection and try again.';
@@ -614,16 +815,10 @@ async function openSaved() {
   savedList.innerHTML = '';
   if (list.length === 0) {
     const empty = document.createElement('div');
-    empty.style.padding = '20px';
-    empty.style.textAlign = 'center';
-    empty.style.color = 'var(--text3)';
-    empty.style.fontSize = '12px';
-    const line1 = document.createTextNode('No saved searches yet.');
-    const br = document.createElement('br');
-    const line2 = document.createTextNode('Search for something and click ★ to save it.');
-    empty.appendChild(line1);
-    empty.appendChild(br);
-    empty.appendChild(line2);
+    empty.className = 'saved-empty';
+    empty.appendChild(document.createTextNode('No saved searches yet.'));
+    empty.appendChild(document.createElement('br'));
+    empty.appendChild(document.createTextNode('Search for something and click ★ to save it.'));
     savedList.appendChild(empty);
   } else {
     list.forEach(item => {
@@ -637,6 +832,8 @@ async function openSaved() {
       qBtn.addEventListener('click', () => {
         if (item.state) restoreSearchState(item.state);
         else qEl.value = item.q;
+        updateFilterBadge();
+        updateDslPreview();
         closeSaved();
         doSearch();
       });
@@ -656,16 +853,16 @@ async function openSaved() {
       savedList.appendChild(row);
     });
   }
-  savedPanel.classList.add('visible');
-  $('main-content').style.display = 'none';
+  browseEl.hidden = true;
+  savedPanel.hidden = false;
   $('hdr-saved-btn').setAttribute('aria-expanded', 'true');
   // P2-4: move focus into the panel when it opens.
   $('btn-saved-close').focus();
 }
 
 function closeSaved() {
-  savedPanel.classList.remove('visible');
-  $('main-content').style.display = 'flex';
+  savedPanel.hidden = true;
+  browseEl.hidden = false;
   $('hdr-saved-btn').setAttribute('aria-expanded', 'false');
   // P2-4: return focus to whatever opened the panel.
   if (lastFocusedBeforeSaved && typeof lastFocusedBeforeSaved.focus === 'function') {
@@ -676,20 +873,73 @@ function closeSaved() {
   lastFocusedBeforeSaved = null;
 }
 
-function closeAddPanel() {
-  addPanel.classList.remove('visible');
-  addPanel.setAttribute('aria-hidden', 'true');
-  addBtn.setAttribute('aria-expanded', 'false');
-  if (lastFocusedBeforeAdd && typeof lastFocusedBeforeAdd.focus === 'function') {
-    lastFocusedBeforeAdd.focus();
-  }
-  lastFocusedBeforeAdd = null;
+// ── Advanced Mode + collapsible cards (v2.4.0) ───────────────────────────────
+
+// applyAdvancedMode is SAFE to call at load: it only toggles visibility/aria/
+// label (no .value reads). Persisting + preview refresh live in setAdvancedMode,
+// which fires from the user toggle only.
+function applyAdvancedMode(on) {
+  advancedMode = on === true;
+  advToggle.setAttribute('aria-checked', advancedMode ? 'true' : 'false');
+  cardAdvanced.hidden = !advancedMode;
+  qLabel.hidden = !advancedMode;
 }
 
-function closeFilters() {
-  filterTog.classList.remove('open');
-  filtersEl.classList.remove('visible');
-  filterTog.setAttribute('aria-expanded', 'false');
+function setAdvancedMode(on) {
+  applyAdvancedMode(on);
+  chrome.storage.local.set({ advancedMode: advancedMode });
+  updateDslPreview();
+}
+
+function updateFilterBadge() {
+  if (!filtersBadge) return;
+  const n = countActiveFilters(captureSearchState());
+  if (n > 0) {
+    filtersBadge.hidden = false;
+    filtersBadge.textContent = String(n);
+  } else {
+    filtersBadge.hidden = true;
+  }
+}
+
+// Generic collapsible-card header toggle.
+function wireCard(hdr, body) {
+  hdr.addEventListener('click', () => {
+    const open = hdr.getAttribute('aria-expanded') !== 'true';
+    hdr.setAttribute('aria-expanded', open ? 'true' : 'false');
+    body.hidden = !open;
+  });
+}
+
+function collapseCard(hdr, body) {
+  if (hdr.getAttribute('aria-expanded') === 'true') {
+    hdr.setAttribute('aria-expanded', 'false');
+    body.hidden = true;
+  }
+}
+
+// Relative-date preset -> absolute YYYY-MM-DD written into the from/to inputs.
+function isoDaysAgo(days) {
+  const d = new Date(Date.now() - days * 86400000);
+  return d.toISOString().slice(0, 10);
+}
+
+function applyDatePreset() {
+  const v = datePreset.value;
+  if (v === 'custom') {
+    dateCustomRow.hidden = false;
+  } else if (v === '') {
+    dateCustomRow.hidden = true;
+    $('f-date-from').value = '';
+    $('f-date-to').value = '';
+  } else {
+    dateCustomRow.hidden = true;
+    const days = v === '24h' ? 1 : v === '7d' ? 7 : 30;
+    $('f-date-from').value = isoDaysAgo(days);
+    $('f-date-to').value = '';
+  }
+  updateFilterBadge();
+  updateDslPreview();
 }
 
 // ── Event wiring ─────────────────────────────────────────────────────────────
@@ -705,46 +955,55 @@ btnSave.addEventListener('click', async () => {
   updateSaveBtn(q);
 });
 
-filterTog.addEventListener('click', () => {
-  const opening = !filtersEl.classList.contains('visible');
-  if (opening) closeAddPanel();
-  filterTog.classList.toggle('open', opening);
-  filtersEl.classList.toggle('visible', opening);
-  filterTog.setAttribute('aria-expanded', opening ? 'true' : 'false');
+// Advanced Mode toggle (role=switch button; native Space/Enter -> click).
+advToggle.addEventListener('click', () => setAdvancedMode(!advancedMode));
+
+// Live DSL preview from the main box + advanced fields.
+[qEl, advExact, advAny, advExclude].forEach(el => {
+  el.addEventListener('input', updateDslPreview);
 });
 
-addBtn.addEventListener('click', () => {
-  const opening = !addPanel.classList.contains('visible');
-  if (opening) {
-    closeFilters();
-    lastFocusedBeforeAdd = document.activeElement;
-  }
-  addPanel.classList.toggle('visible', opening);
-  addPanel.setAttribute('aria-hidden', opening ? 'false' : 'true');
-  addBtn.setAttribute('aria-expanded', opening ? 'true' : 'false');
-  if (opening) addUrl.focus();
+// Filter changes keep the badge + preview in sync.
+['f-author', 'f-score-op', 'f-score-val', 'f-flair', 'f-min-comments', 'f-scope', 'f-sort',
+ 'f-date-from', 'f-date-to'].forEach(id => {
+  const el = $(id);
+  el.addEventListener('input', () => { updateFilterBadge(); updateDslPreview(); });
+  el.addEventListener('change', () => { updateFilterBadge(); updateDslPreview(); });
 });
+datePreset.addEventListener('change', applyDatePreset);
+
+// Collapsible cards.
+wireCard(advCardHdr, advCardBody);
+wireCard(filtersHdr, filtersBody);
+addHdr.addEventListener('click', () => {
+  const open = addHdr.getAttribute('aria-expanded') !== 'true';
+  addHdr.setAttribute('aria-expanded', open ? 'true' : 'false');
+  addBody.hidden = !open;
+  if (open) addUrl.focus();
+});
+
 addSubmit.addEventListener('click', submitUrl);
 addUrl.addEventListener('keydown', e => { if (e.key === 'Enter') submitUrl(); });
 
+btnCopyResults.addEventListener('click', copyResults);
 loadMore.addEventListener('click', () => doSearch(true));
 
 $('hdr-saved-btn').addEventListener('click', openSaved);
 $('btn-saved-close').addEventListener('click', closeSaved);
 
-// P2-4: Escape closes whichever panel(s) are currently open, and manages
-// focus via the close helpers above.
+introDismiss.addEventListener('click', () => {
+  introTip.hidden = true;
+  chrome.storage.local.set({ seenIntro: 1 });
+});
+
+// P2-4: Escape closes the saved overlay first, otherwise collapses any open
+// cards, and manages focus via the close helpers above.
 document.addEventListener('keydown', e => {
   if (e.key !== 'Escape') return;
-  if (savedPanel.classList.contains('visible')) {
-    closeSaved();
-  }
-  if (addPanel.classList.contains('visible')) {
-    closeAddPanel();
-  }
-  if (filtersEl.classList.contains('visible')) {
-    closeFilters();
-  }
+  if (!savedPanel.hidden) { closeSaved(); return; }
+  collapseCard(advCardHdr, advCardBody);
+  collapseCard(filtersHdr, filtersBody);
+  collapseCard(addHdr, addBody);
 });
 
 // ── Debug log (P1-9) ─────────────────────────────────────────────────────────
@@ -767,16 +1026,11 @@ function formatDebugEntry(e) {
 function initDebugLink() {
   const wrap = document.createElement('div');
   wrap.id = 'debug-link-wrap';
-  wrap.style.cssText = 'flex-shrink:0;padding:4px 14px 6px;text-align:center';
 
   const link = document.createElement('button');
   link.type = 'button';
   link.id = 'debug-copy-btn';
   link.textContent = 'Copy debug info';
-  link.style.cssText = 'background:none;border:none;color:var(--text3);font-size:10px;' +
-    'cursor:pointer;padding:2px 6px;opacity:.6;transition:opacity .15s';
-  link.addEventListener('mouseenter', () => { link.style.opacity = '1'; });
-  link.addEventListener('mouseleave', () => { link.style.opacity = '.6'; });
 
   link.addEventListener('click', async () => {
     try {
@@ -796,7 +1050,7 @@ function initDebugLink() {
   });
 
   wrap.appendChild(link);
-  document.body.appendChild(wrap);
+  (browseEl || document.body).appendChild(wrap);
 }
 
 // ── Init ─────────────────────────────────────────────────────────────────────
@@ -804,24 +1058,34 @@ function initDebugLink() {
 (async function init() {
   await renderRecent();
   initDebugLink();
-  // Restore last query if popup was closed mid-search
-  const stored = await new Promise(r => chrome.storage.local.get(['lastQuery'], r));
+
+  const stored = await new Promise(r =>
+    chrome.storage.local.get(['lastQuery', 'advancedMode', 'seenIntro'], r));
+
+  // advancedMode: written here as a boolean; sanitize to a strict boolean on read.
+  applyAdvancedMode(stored.advancedMode === true);
+
+  // First-run tip: shown unless seenIntro is set (sanitize on read = truthiness).
+  introTip.hidden = Boolean(stored.seenIntro);
+
+  // Restore last query if popup was closed mid-search.
   // P1-2: this key is written directly by this file (not via background.js's
   // message API), so it never passes through background.js's sanitization
   // helpers. Apply the same type-check + length cap here before it touches
   // the DOM, so a corrupted/wrong-type stored value can't flow into
   // qEl.value or a .textContent template string unsanitized.
-  const lastQuery = typeof stored.lastQuery === 'string' ? capLen(stored.lastQuery.trim(), MAX_TEXT_LEN) : '';
-  if (lastQuery) {
-    qEl.value = lastQuery;
+  const lastQueryStored = typeof stored.lastQuery === 'string'
+    ? capLen(stored.lastQuery.trim(), MAX_TEXT_LEN) : '';
+  if (lastQueryStored) {
+    qEl.value = lastQueryStored;
     // Results aren't restored (avoids re-hitting the worker on every popup
     // open for cost/latency reasons) -- make the empty state say so instead
     // of looking like the previous search just vanished. This is a
     // .textContent assignment, so no HTML-escaping is applied or needed
     // (P2-2: escHtml() into .textContent would double-escape).
     emptyEl.querySelector('.empty-txt').textContent = 'Press Enter to search again';
-    emptyEl.querySelector('.empty-hint').textContent = `Picking up where you left off: "${lastQuery}"`;
-    updateSaveBtn(lastQuery);
+    emptyEl.querySelector('.empty-hint').textContent = `Picking up where you left off: "${lastQueryStored}"`;
+    updateSaveBtn(lastQueryStored);
   }
   qEl.focus();
   qEl.select();

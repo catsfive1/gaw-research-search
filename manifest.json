@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
-  "name": "GAW Research Search",
-  "version": "2.3.1",
-  "description": "Search the GAW Firehose archive — instant results from 90K+ posts, with flair/comment filters and the ability to add a page yourself",
+  "name": "GAW: RE-SEARCH",
+  "version": "2.4.0",
+  "description": "Search 130,000+ greatawakening.win posts and comments instantly — advanced boolean search, filters, and add-a-post. No login, no tracking.",
   "permissions": ["storage"],
   "host_permissions": ["https://gaw-mod-proxy.gaw-mods-a2f2d0e4.workers.dev/*"],
   "minimum_chrome_version": "116",
@@ -20,7 +20,7 @@
       "16": "icons/icon16.png",
       "48": "icons/icon48.png"
     },
-    "default_title": "GAW Research Search"
+    "default_title": "GAW: RE-SEARCH"
   },
   "background": {
     "service_worker": "background.js"
