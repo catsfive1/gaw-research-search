@@ -56,7 +56,7 @@ early July.
 
 ## Current numbers
 
-- **Database total: 100,872+ posts** (gaw_posts table, gaw-audit D1) — climbing continuously.
+- **Database total: 131,138+ posts** (gaw_posts table, gaw-audit D1, confirmed live 2026-07-09) — climbing continuously.
 - Quality filter on the bulk crawler: score > 20, comments >= 6 (deliberate submissions via
   the extension's "Add a Post" feature bypass this filter — see below).
 - Extension version: **v2.3.1** (comment-link fix — see below).
@@ -105,17 +105,21 @@ Three independent layers, all verified live:
    check, only active while a Claude Code session is open.
 
 **Self-stop safety cap**: indexer.py stops itself and writes `CAP-REACHED.flag` once *its own*
-ingest counter hits 100,000 (currently 57,484 — this is separate from the 100,872 database
-total, which also includes older crawler contributions and Add-a-Post submissions). All three
-watchdogs check for that flag and will NOT restart it once present — this is intentional, not
-a bug. To resume past the cap later: delete `CAP-REACHED.flag` and re-run with a higher
-`--max-posts` value.
+ingest counter hits 100,000 (currently **86,584 as of 2026-07-09 — getting close**; this is
+separate from the 131,138+ database total, which also includes older crawler contributions and
+Add-a-Post submissions). All three watchdogs check for that flag and will NOT restart it once
+present — this is intentional, not a bug. **If mod testing continues for more than another
+day or two, the indexer may hit this cap and stop on its own** — check for `CAP-REACHED.flag`
+if the database total suddenly stops climbing. To resume past the cap: delete the flag and
+re-run with a higher `--max-posts` value.
 
 ## Known limitations / not done yet
 
 - Not submitted to Chrome Web Store — mods will need "Load unpacked" for now (see mod prompt below).
-- Google Drive archive mirror for build ZIPs is currently skipping (`E:\` not mounted in this
-  environment) — local dist is the source of truth in the meantime, fail-soft by design.
+- Comment results link to the parent post's comments tab, not scrolled to the exact comment
+  (see the v2.3.1 note above) — a known, documented gap, not silently unfixed.
+- **Indexer approaching its self-stop cap** (86,584 / 100,000 own-counter as of 2026-07-09) — see
+  the safety-cap note above.
 - No usage analytics on the Add-a-Post feature yet (works, but no dashboard for how often
   it's used / rate-limit hit rate).
 - Rate limit on Add-a-Post (5/hour/IP) has not been load-tested with real concurrent mod usage.
