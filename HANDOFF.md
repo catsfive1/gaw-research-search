@@ -1,8 +1,53 @@
-# GAW Research Search — Handoff (2026-07-09)
+# GAW: RE-SEARCH — Handoff (2026-07-10)
 
-## Status: ready for mod testing
+## Status: v2.4.0 ready for COMMUNITY BETA (public rollout)
 
 Everything below is verified working as of this handoff, not just "should work."
+External product name is now **GAW: RE-SEARCH** (repo/worker/folder names
+unchanged). ZIP: `D:\AI\_PROJECTS\dist\gaw-research-search-v2.4.0.zip`.
+
+## v2.4.0 (2026-07-10): public rollout — rebrand, card UI, Advanced Mode, anti-hammer hardening
+
+Built via a parallel 3-agent workflow (frontend / service-worker / worker) +
+test pass + 3 adversarial verifiers, then integrator hardening + live verification.
+
+**UI:** rebranded to GAW: RE-SEARCH (+ BETA badge + WWW.GREATAWAKENING.WIN
+tagline link); features reorganized into collapsible, headered **cards**
+(Search / Advanced Search / Filters / Add-a-Post / Saved+Recent); an **Advanced
+Mode** toggle (role=switch, persisted) reveals structured boolean search — All
+words / Exact phrase / Any-of (OR) / Exclude (NOT) — with a live compiled-DSL
+preview; relative date presets (24h/7d/30d/custom); Copy-results (markdown);
+first-run tip. Every advanced value is quoted/metachar-stripped before it enters
+the query string (no raw FTS operators can be smuggled). Verified live in a real
+browser render.
+
+**Anti-hammer (both ends):**
+- *Client (background.js):* in-service-worker token bucket (20 burst, ~20/min),
+  60s result cache, in-flight de-dup, 429/503 backoff, `X-GAW-Client` header —
+  invisible to real users, instant to a loop.
+- *Backend (worker, deployed):* per-IP rate limit **40/min + 400/hr** on
+  `/gaw/search` (was completely UNPROTECTED before this) + a global 1000/min
+  circuit breaker to protect the shared Cloudflare quota; both fail-open (a KV
+  blip never takes search down); 429/503 carry `Retry-After`. New `any:`
+  OR-group grammar. FTS errors no longer leak internal text.
+
+**SECURITY DECISION worth your attention — removed content is now MOD-ONLY for
+the public.** Adversarial verification found that moderator-removed content
+(2,003 posts) was *publicly searchable*, and the `removed:1` mod gate was
+bypassable via `removed:"1"`. For a public rollout I judged that resurfacing
+content you deliberately removed is a liability (it undercuts moderation), so
+**tokenless (public) callers now get a forced `is_removed=0` floor; the mod tool
+(which sends `X-Mod-Token`) still sees the full archive including removed.**
+Confirmed live: a tokenless search for a known removed post now returns 0 removed
+rows. **If you actually want the public to see removed content, that's a one-line
+flip** — say so and I'll change it. (This is also why the empty-state no longer
+advertises "deleted ones too".) Also fixed: negative-`limit` full-archive harvest
+(`limit=-1` → clamped to [1,200]) and an FTS join bug that broke `term + any:`
+queries.
+
+**Tests:** 202 pass (was 128). **Live-verified:** rate limiter (40/min → 429 +
+Retry-After), removed-content lockdown, quoted-bypass closed, negative-limit
+clamp, every advanced-query combination, and full UI render/compile in Chrome.
 
 ## v2.3.1 update (2026-07-09): fixed comment links going to the GAW homepage
 
@@ -59,14 +104,14 @@ early July.
 - **Database total: 131,138+ posts** (gaw_posts table, gaw-audit D1, confirmed live 2026-07-09) — climbing continuously.
 - Quality filter on the bulk crawler: score > 20, comments >= 6 (deliberate submissions via
   the extension's "Add a Post" feature bypass this filter — see below).
-- Extension version: **v2.3.1** (comment-link fix — see below).
+- Extension version: **v2.4.0** (public-rollout release — see top of doc).
 
 ## Architecture (where everything lives)
 
 | Piece | Path / identifier |
 |---|---|
 | Extension source | `D:\AI\_PROJECTS\gaw-research-search\` (manifest.json, popup.html, popup.js, background.js) |
-| Packaged ZIP | `D:\AI\_PROJECTS\dist\gaw-research-search-v2.3.1.zip` |
+| Packaged ZIP | `D:\AI\_PROJECTS\dist\gaw-research-search-v2.4.0.zip` |
 | Unpacked (Load unpacked target) | `D:\AI\_PROJECTS\dist\gaw-research-search-dist\` |
 | Worker source | `D:\AI\_PROJECTS\cloudflare-worker\gaw-mod-proxy-v2.js` |
 | Worker deployed as | `gaw-mod-proxy` → `https://gaw-mod-proxy.gaw-mods-a2f2d0e4.workers.dev` |
