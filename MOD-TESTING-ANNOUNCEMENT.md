@@ -41,6 +41,14 @@ Google's advanced search, you already know how it works.
 - Does **Add a Post** work for you?
 - Gut check: is this genuinely useful for the digging you do?
 
-Drop feedback in [wherever you want replies — Discord channel / thread].
+Drop feedback in [wherever you want replies — Discord channel / thread], or
+email **catsfive@yahoo.com** directly.
 
 Thanks for kicking the tires before this goes wide.
+
+---
+
+**Privacy:** No accounts, no login, no tracking, no analytics. Your saved and
+recent searches live on your own computer only. The only thing that leaves
+your machine is your search query, sent to our proxy to fetch results. Full
+policy: `PRIVACY.md`.

@@ -10,6 +10,17 @@ const CLIENT_ID = 'research-ext/2.4.0';
 const DEBUG_LOG_MAX = 20;
 let debugLog = [];
 
+// Check chrome.runtime.lastError inside storage callbacks and log a debug
+// entry if Chrome reports one (quota exceeded, storage corruption, etc.).
+// Returns true when an error was present (callers can choose to bail).
+function checkStorageError(context) {
+  if (chrome.runtime.lastError) {
+    logDebug({ action: 'storage_error', context, errorClass: chrome.runtime.lastError.message });
+    return true;
+  }
+  return false;
+}
+
 function logDebug(entry) {
   debugLog.push({ ts: Date.now(), ...entry });
   if (debugLog.length > DEBUG_LOG_MAX) debugLog = debugLog.slice(-DEBUG_LOG_MAX);
@@ -269,6 +280,14 @@ function looksLikeGawPostUrl(u) {
 }
 
 chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
+  // P0-5: sender validation — this SW's message API is for our own popup
+  // only. With no externally_connectable, foreign senders can't normally
+  // reach us, but we enforce the boundary explicitly: any message not from
+  // this extension's own runtime is rejected before type/shape checks run.
+  if (!sender || sender.id !== chrome.runtime.id) {
+    sendResponse({ ok: false, error: 'Unauthorized sender.' });
+    return false;
+  }
   if (!msg || typeof msg !== 'object') {
     sendResponse({ ok: false, error: 'Malformed message.' });
     return false;
@@ -288,7 +307,10 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
   }
 
   if (msg.type === 'getSaved') {
-    chrome.storage.local.get(['saved'], r => sendResponse({ list: sanitizeSavedList(r.saved) }));
+    chrome.storage.local.get(['saved'], r => {
+      if (checkStorageError('getSaved')) { sendResponse({ list: [] }); return; }
+      sendResponse({ list: sanitizeSavedList(r.saved) });
+    });
     return true;
   }
 
@@ -298,6 +320,7 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
     const state = sanitizeSearchState(msg.state);
     serialize(() => new Promise(resolve => {
       chrome.storage.local.get(['saved'], r => {
+        checkStorageError('toggleSave.get');
         let list = sanitizeSavedList(r.saved);
         const idx = list.findIndex(s => s.q === q);
         if (idx >= 0) {
@@ -309,6 +332,11 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
           if (list.length > 100) list.length = 100;
         }
         chrome.storage.local.set({ saved: list }, () => {
+          if (checkStorageError('toggleSave.set')) {
+            sendResponse({ ok: false, error: 'Couldn’t save — storage unavailable.' });
+            resolve();
+            return;
+          }
           sendResponse({ ok: true, saved: idx < 0 });
           resolve();
         });
@@ -318,7 +346,10 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
   }
 
   if (msg.type === 'getRecent') {
-    chrome.storage.local.get(['recent'], r => sendResponse({ list: sanitizeRecentList(r.recent) }));
+    chrome.storage.local.get(['recent'], r => {
+      if (checkStorageError('getRecent')) { sendResponse({ list: [] }); return; }
+      sendResponse({ list: sanitizeRecentList(r.recent) });
+    });
     return true;
   }
 
@@ -328,11 +359,17 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
     const state = sanitizeSearchState(msg.state);
     serialize(() => new Promise(resolve => {
       chrome.storage.local.get(['recent'], r => {
+        checkStorageError('addRecent.get');
         let list = sanitizeRecentList(r.recent).filter(s => (typeof s === 'string' ? s : s.q) !== q);
         const entry = state ? { q, state } : q;
         list.unshift(entry);
         if (list.length > 30) list.length = 30;
         chrome.storage.local.set({ recent: list }, () => {
+          if (checkStorageError('addRecent.set')) {
+            sendResponse({ ok: false, error: 'Couldn’t save — storage unavailable.' });
+            resolve();
+            return;
+          }
           sendResponse({ ok: true });
           resolve();
         });

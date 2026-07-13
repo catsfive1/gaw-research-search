@@ -5,7 +5,7 @@
   --bg:#0d1117;--bg2:#161b22;--bg3:#21262d;
   --border:#30363d;--border2:#484f58;
   --text:#e6edf3;--text2:#8b949e;--text3:#8d95a0;
-  --blue:#58a6ff;--blue2:#1f6feb;--blue3:#388bfd;--blue-hover:#2563eb;
+  --blue:#58a6ff;--blue2:#1a66d8;--blue3:#388bfd;--blue-hover:#2563eb;
   --green:#3fb950;--red:#f85149;--orange:#f0883e;
   --yellow:#d29922;--purple:#bc8cff;
 }
@@ -322,10 +322,36 @@ body{
 .saved-del:hover{color:var(--red)}
 .saved-empty{padding:20px;text-align:center;color:var(--text3);font-size:12px;line-height:1.7}
 
-/* ── DEBUG LINK ───────────────────────────────────────────────────────────── */
-#debug-link-wrap{padding:4px 14px 8px;text-align:center}
-#debug-copy-btn{
-  background:none;border:none;color:var(--text3);font-size:10px;cursor:pointer;
-  padding:2px 6px;opacity:.55;transition:opacity .15s
+/* ── FOOTER (version + debug + updates) ────────────────────────────────────── */
+#footer-wrap{
+  padding:6px 14px 10px;display:flex;align-items:center;gap:8px;
+  flex-wrap:wrap;justify-content:center
 }
-#debug-copy-btn:hover{opacity:1}
+#footer-version{
+  font-size:10px;color:var(--text3);font-weight:600;letter-spacing:.3px;
+  opacity:.6;flex:0 0 auto
+}
+.footer-btn{
+  background:none;border:none;color:var(--text3);font-size:10px;cursor:pointer;
+  padding:2px 4px;opacity:.55;transition:opacity .15s,color .15s;flex:0 0 auto
+}
+.footer-btn:hover{opacity:1;color:var(--blue)}
+
+/* ── REDUCED MOTION (WCAG 2.3.3) ──────────────────────────────────────────── */
+/* Users who request reduced motion get a static loading indicator instead of
+   the infinite spinner, and no card-arrow rotation. Transitions on color
+   hover/focus are kept (they communicate state) but are instant. */
+@media (prefers-reduced-motion: reduce){
+  *,*::before,*::after{
+    animation-duration:.001ms !important;
+    animation-iteration-count:1 !important;
+    transition-duration:.001ms !important;
+  }
+  /* Replace the spinning ring with a calm static dot so the loading state
+     is still visible without motion. */
+  #status-bar.loading::before{
+    content:'';width:8px;height:8px;border-radius:50%;
+    background:var(--blue);border:none;animation:none
+  }
+  .card-arrow{transition:none}
+}

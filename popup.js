@@ -1006,10 +1006,21 @@ document.addEventListener('keydown', e => {
   collapseCard(addHdr, addBody);
 });
 
-// ── Debug log (P1-9) ─────────────────────────────────────────────────────────
-// Small, unobtrusive "Copy debug info" link at the bottom of the popup. Pulls
-// the in-memory ring buffer from background.js (timings/status/error class
-// only -- no secrets/tokens) and copies it as plain text.
+// ── Footer: version + debug log + check for updates (v2.5.0) ─────────────────
+// Small, unobtrusive footer row at the bottom of the popup. Three elements:
+//   1. Version label (read from manifest via chrome.runtime.getManifest)
+//   2. "Copy debug info" — pulls the in-memory ring buffer from background.js
+//      (timings/status/error class only — no secrets/tokens) and copies as text.
+//   3. "Check for Updates" — opens the GitHub Releases page in a new tab.
+//
+// WHY NOT update_url / auto-update: Chrome ignores update_url for extensions
+// installed via "Load unpacked" (developer mode). The honest, working pattern
+// for GitHub distribution is a manual check: this button opens the releases
+// page so the user can see if a newer version exists, then follow the update
+// steps in README.md. Zero new permissions — window.open on a user gesture
+// needs no host_permission or tabs permission.
+const RELEASES_URL = 'https://github.com/catsfive1/gaw-research-search/releases';
+
 function formatDebugEntry(e) {
   const when = e.ts ? new Date(e.ts).toLocaleTimeString() : '?';
   return [
@@ -1023,16 +1034,27 @@ function formatDebugEntry(e) {
   ].filter(Boolean).join(' | ');
 }
 
-function initDebugLink() {
+function initFooter() {
   const wrap = document.createElement('div');
-  wrap.id = 'debug-link-wrap';
+  wrap.id = 'footer-wrap';
 
-  const link = document.createElement('button');
-  link.type = 'button';
-  link.id = 'debug-copy-btn';
-  link.textContent = 'Copy debug info';
+  // 1. Version label — getManifest() is synchronous and needs no permission.
+  const ver = document.createElement('span');
+  ver.id = 'footer-version';
+  try {
+    const m = chrome.runtime.getManifest();
+    ver.textContent = 'v' + (m.version || '?');
+  } catch (_e) {
+    ver.textContent = '';
+  }
 
-  link.addEventListener('click', async () => {
+  // 2. Copy debug info button (P1-9, unchanged behavior).
+  const debugBtn = document.createElement('button');
+  debugBtn.type = 'button';
+  debugBtn.id = 'debug-copy-btn';
+  debugBtn.className = 'footer-btn';
+  debugBtn.textContent = 'Copy debug info';
+  debugBtn.addEventListener('click', async () => {
     try {
       const resp = await msg({ type: 'getDebugLog' });
       const list = (resp && resp.list) || [];
@@ -1040,16 +1062,32 @@ function initDebugLink() {
         ? 'No debug entries yet.'
         : list.map(formatDebugEntry).join('\n');
       await navigator.clipboard.writeText(text);
-      const original = link.textContent;
-      link.textContent = 'Copied';
-      setTimeout(() => { link.textContent = original; }, 1500);
+      const original = debugBtn.textContent;
+      debugBtn.textContent = 'Copied';
+      setTimeout(() => { debugBtn.textContent = original; }, 1500);
     } catch (e) {
-      link.textContent = 'Copy failed';
-      setTimeout(() => { link.textContent = 'Copy debug info'; }, 1500);
+      debugBtn.textContent = 'Copy failed';
+      setTimeout(() => { debugBtn.textContent = 'Copy debug info'; }, 1500);
     }
   });
 
-  wrap.appendChild(link);
+  // 3. Check for Updates — opens GitHub Releases. Lets the user see the latest
+  // version and follow README.md update steps. No auto-install is possible for
+  // unpacked extensions, so this is the honest path.
+  const updateBtn = document.createElement('button');
+  updateBtn.type = 'button';
+  updateBtn.id = 'update-check-btn';
+  updateBtn.className = 'footer-btn';
+  updateBtn.textContent = 'Check for Updates';
+  updateBtn.addEventListener('click', () => {
+    // window.open from the popup opens a new tab on user gesture. No extra
+    // permission required (no chrome.tabs, no host_permission for github.com).
+    window.open(RELEASES_URL, '_blank', 'noopener');
+  });
+
+  wrap.appendChild(ver);
+  wrap.appendChild(debugBtn);
+  wrap.appendChild(updateBtn);
   (browseEl || document.body).appendChild(wrap);
 }
 
@@ -1057,7 +1095,7 @@ function initDebugLink() {
 
 (async function init() {
   await renderRecent();
-  initDebugLink();
+  initFooter();
 
   const stored = await new Promise(r =>
     chrome.storage.local.get(['lastQuery', 'advancedMode', 'seenIntro'], r));

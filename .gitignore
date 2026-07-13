@@ -1,5 +1,9 @@
 *.log
 .env
 
+# SQLite database mirrors belong to the Worker backend, not this extension repo.
+# Never commit a .db file here — it's backend data, not extension code.
+*.db
+
 # generated preview artifact (rebuilt from real files via preview/build-preview.mjs)
 preview/index.html
