@@ -1,14 +1,14 @@
 {
   "manifest_version": 3,
   "name": "GAW: RE-SEARCH",
-  "version": "2.5.0",
+  "version": "2.5.1",
   "description": "Search 130,000+ greatawakening.win posts and comments instantly — advanced boolean search, filters, and add-a-post. No login, no tracking.",
   "homepage_url": "https://github.com/catsfive1/gaw-research-search",
   "permissions": ["storage"],
   "host_permissions": ["https://gaw-mod-proxy.gaw-mods-a2f2d0e4.workers.dev/*"],
   "minimum_chrome_version": "116",
   "content_security_policy": {
-    "extension_pages": "script-src 'self'; object-src 'self'; connect-src 'self' https://gaw-mod-proxy.gaw-mods-a2f2d0e4.workers.dev"
+    "extension_pages": "script-src 'self'; object-src 'self'; connect-src 'self' https://gaw-mod-proxy.gaw-mods-a2f2d0e4.workers.dev https://api.github.com"
   },
   "icons": {
     "16": "icons/icon16.png",

@@ -21,6 +21,16 @@
     <button id="hdr-saved-btn" type="button" aria-expanded="false" aria-controls="saved-panel">&#9776; My Searches</button>
   </header>
 
+  <!-- Update available banner (shown only when a newer version exists on GitHub).
+       v2.5.1: the popup checks api.github.com once every 3 days; if a newer
+       release tag is found, this banner appears with a direct download button.
+       Dismissed for a given version stays dismissed until an even newer one drops. -->
+  <div id="update-banner" role="status" aria-live="polite" hidden>
+    <span id="update-banner-txt"></span>
+    <a id="update-banner-dl" href="#" target="_blank" rel="noopener">Download</a>
+    <button id="update-banner-dismiss" type="button" aria-label="Dismiss update notice">&times;</button>
+  </div>
+
   <div id="adv-mode-row">
     <span id="adv-mode-label">Advanced Mode</span>
     <button id="adv-toggle" type="button" class="switch" role="switch" aria-checked="false" aria-labelledby="adv-mode-label">
@@ -144,7 +154,7 @@
       <span class="card-title">&#8853; Add a Post</span>
     </button>
     <div class="card-body" id="add-body" hidden>
-      <div id="add-panel-hint">Can't find a post? Paste a full post link (greatawakening.win/p/&hellip;) to index it right now.</div>
+      <div id="add-panel-hint">Got a post the search missed &mdash; or a bookmark worth preserving in the archive? Paste the full link (greatawakening.win/p/&hellip;) and it'll be indexed right now.</div>
       <div id="add-row">
         <input id="add-url" type="text" placeholder="https://greatawakening.win/p/..." autocomplete="off" aria-label="greatawakening.win post link to add" maxlength="2048">
         <button id="btn-add-submit" type="button">Add</button>

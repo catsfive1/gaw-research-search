@@ -57,6 +57,11 @@ const btnCopyResults = $('btn-copy-results');
 // First-run tip
 const introTip     = $('intro-tip');
 const introDismiss = $('intro-tip-dismiss');
+// v2.5.1: auto update-check banner
+const updateBanner      = $('update-banner');
+const updateBannerTxt   = $('update-banner-txt');
+const updateBannerDl    = $('update-banner-dl');
+const updateBannerX     = $('update-banner-dismiss');
 
 // ── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -1006,6 +1011,114 @@ document.addEventListener('keydown', e => {
   collapseCard(addHdr, addBody);
 });
 
+// ── Auto update-check (v2.5.1) ──────────────────────────────────────────────
+// Checks GitHub's public releases API for a newer version, throttled to once
+// every 3 days. PRIVACY: this sends NO user data — it's a GET to a public API
+// endpoint that returns release metadata (version tag + asset URLs). GitHub
+// sees the extension's IP (like any website visit); it receives no query text,
+// no account info, no identifier. The CSP (manifest.json) allows api.github.com
+// specifically for this fetch — no new chrome.permissions or host_permissions
+// are required. The check runs when the popup opens, only if 3 days have
+// passed since the last check. Failed checks (offline, rate-limited, parse
+// error) fail silently — the banner simply doesn't show.
+const UPDATE_REPO = 'catsfive1/gaw-research-search';
+const UPDATE_API_URL = 'https://api.github.com/repos/' + UPDATE_REPO + '/releases/latest';
+const UPDATE_CHECK_INTERVAL_MS = 3 * 24 * 60 * 60 * 1000; // 3 days
+
+// Compare two semver strings (e.g. "2.5.1" vs "2.6.0"). Returns true if
+// `remote` is strictly newer than `local`. Strips leading "v" if present and
+// tolerates non-numeric segments by treating them as 0.
+function isVersionNewer(local, remote) {
+  const strip = v => String(v || '').replace(/^v/i, '').trim();
+  const parse = v => strip(v).split('.').map(n => parseInt(n, 10)).filter(n => Number.isFinite(n));
+  const a = parse(local);
+  const b = parse(remote);
+  const len = Math.max(a.length, b.length);
+  for (let i = 0; i < len; i++) {
+    const av = a[i] || 0;
+    const bv = b[i] || 0;
+    if (bv > av) return true;
+    if (bv < av) return false;
+  }
+  return false;
+}
+
+// Returns the current installed version from the manifest (e.g. "2.5.1").
+function getInstalledVersion() {
+  try {
+    return chrome.runtime.getManifest().version || '';
+  } catch (_e) {
+    return '';
+  }
+}
+
+// Runs on popup open. If 3+ days since last check, hits the GitHub API for the
+// latest release. If it's newer than what's installed AND the user hasn't
+// dismissed that specific version, shows the update banner with a download
+// link to the latest ZIP asset.
+async function maybeCheckForUpdate() {
+  if (!updateBanner) return;
+
+  const keys = await new Promise(r =>
+    chrome.storage.local.get(['updateCheckTs', 'updateDismissedVer'], r));
+  const now = Date.now();
+  const lastCheck = Number(keys.updateCheckTs) || 0;
+
+  // Throttle: don't hit GitHub more than once per interval.
+  if (now - lastCheck < UPDATE_CHECK_INTERVAL_MS) return;
+
+  // Record that we checked now (before the fetch — if the fetch fails we still
+  // don't want to re-check every popup open).
+  chrome.storage.local.set({ updateCheckTs: now });
+
+  let release;
+  try {
+    // GitHub's public API: no auth needed for public repos. User-Agent header
+    // is polite (GitHub asks for one) and identifies the extension.
+    const resp = await fetch(UPDATE_API_URL, {
+      headers: { Accept: 'application/vnd.github+json', 'User-Agent': 'gaw-research-search-ext' },
+      cache: 'no-store',
+    });
+    if (!resp.ok) return;
+    release = await resp.json();
+  } catch (_e) {
+    return; // offline / network error — fail silently
+  }
+
+  if (!release || !release.tag_name) return;
+  const remoteVer = String(release.tag_name).replace(/^v/i, '');
+  const installedVer = getInstalledVersion();
+  if (!remoteVer || !installedVer) return;
+  if (!isVersionNewer(installedVer, remoteVer)) return;
+
+  // User dismissed this exact version before? Stay quiet until a NEWER one.
+  if (keys.updateDismissedVer === remoteVer) return;
+
+  // Find the ZIP asset URL (first .zip in assets). Fallback to releases page.
+  const assets = Array.isArray(release.assets) ? release.assets : [];
+  const zip = assets.find(a => /\.zip$/i.test(a.name || ''));
+  const dlUrl = (zip && zip.browser_download_url) || release.html_url || RELEASES_URL;
+
+  updateBannerTxt.textContent = 'Update available — v' + remoteVer;
+  updateBannerDl.href = dlUrl;
+  updateBanner.hidden = false;
+
+  // Remember the remote version we're showing the banner FOR, so the dismiss
+  // handler can suppress just this version (and re-appear for a newer one).
+  updateBanner.dataset.remoteVer = remoteVer;
+}
+
+// Dismiss handler: records the dismissed version so the banner stays gone
+// until an even newer version ships. Does NOT reset the 3-day check clock.
+if (updateBannerX) {
+  updateBannerX.addEventListener('click', () => {
+    updateBanner.hidden = true;
+    // Suppress this specific remote version until an even newer one ships.
+    const dismissedVer = updateBanner.dataset.remoteVer || '';
+    if (dismissedVer) chrome.storage.local.set({ updateDismissedVer: dismissedVer });
+  });
+}
+
 // ── Footer: version + debug log + check for updates (v2.5.0) ─────────────────
 // Small, unobtrusive footer row at the bottom of the popup. Three elements:
 //   1. Version label (read from manifest via chrome.runtime.getManifest)
@@ -1096,6 +1209,7 @@ function initFooter() {
 (async function init() {
   await renderRecent();
   initFooter();
+  maybeCheckForUpdate(); // v2.5.1: throttled, non-blocking, silent on failure
 
   const stored = await new Promise(r =>
     chrome.storage.local.get(['lastQuery', 'advancedMode', 'seenIntro'], r));
