@@ -99,9 +99,52 @@ you stay current.
   exclude (NOT). A live preview shows the actual query as you type.
 - **★ Star** a search to save it. Recent searches appear as one-tap chips.
 - **Copy results** — grabs your on-screen results as a markdown list.
-- **⊕ Add a Post** — paste a GAW post link to index it immediately.
+- **⊕ Add a Post** — got a post the search missed, or a bookmark worth
+  preserving? Paste a GAW post link to index it immediately.
 - **Copy debug info** — if something's broken, click this before reporting and
   paste the result. It's timings and status codes only — no personal data.
+
+---
+
+## 🔧 For power users
+
+### Keyboard shortcut to open the popup
+
+You can assign a keyboard shortcut so the search opens instantly — no clicking
+the toolbar icon required.
+
+1. Go to `chrome://extensions/shortcuts` (or click the hamburger menu in
+   `chrome://extensions` → **Keyboard shortcuts**).
+2. Find **GAW: RE-SEARCH**.
+3. Click the box next to "Activate the extension" and press your combo
+   (e.g. `Ctrl+Shift+S` or `Cmd+Shift+S` on Mac).
+4. Now that combo opens the search popup anywhere in the browser.
+
+### Install via `git clone` (instead of the ZIP)
+
+If you have `git` installed, you can skip the ZIP download entirely — and
+updating becomes a single command instead of a re-download.
+
+**Install (one time):**
+
+```bash
+git clone https://github.com/catsfive1/gaw-research-search.git
+```
+
+Then in `chrome://extensions`, click **Load unpacked** and select the
+`gaw-research-search` folder that `git clone` created.
+
+**Update later (any time):**
+
+```bash
+cd gaw-research-search
+git pull
+```
+
+Then hit **↻ Reload** on the GAW: RE-SEARCH card in `chrome://extensions`.
+That's it — no ZIP, no folder-swapping, no re-download.
+
+*(Credit: u/Podger on greatawakening.win for both tips.)*
 
 ---
 
