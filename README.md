@@ -4,7 +4,7 @@ A Chrome extension for searching the entire greatawakening.win archive —
 130,000+ posts and comments — right from your browser toolbar. No login. No
 tracking. Free.
 
-**Current version: 2.5.0**
+**Current version: 2.5.1** · **Status: active**
 
 ---
 
